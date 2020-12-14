@@ -1,0 +1,167 @@
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/buffer_head.h>
+#include <linux/slab.h>
+#include <linux/init.h>
+#include <linux/vfs.h>
+#include <linux/fs.h>
+#include "jbfs.h"
+
+static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
+{
+  struct buffer_head *bh;
+  struct jbfs_sb_info *sbi;
+  struct jbfs_super_block *js;
+  struct inode *root_inode;
+  int sb_block, sb_offset;
+  int blocksize;
+  int ret = -ENOMEM;
+
+  sbi = kzalloc(sizeof(*sbi), GFP_KERNEL);
+  if (!sbi) {
+    goto failed;
+  }
+
+  sb->s_fs_info = sbi;
+  ret = -EINVAL;
+
+  blocksize = sb_min_blocksize(sb, 1024);
+  if (!blocksize) {
+    printk(KERN_ERR "jbfs: Unable to set blocksize.\n");
+    goto failed_sbi;
+  }
+
+reread_sb:
+  sb_block  = 1024 / blocksize;
+  sb_offset = 1024 % blocksize;
+
+  bh = sb_bread(sb, sb_block);
+  if (!bh) {
+    printk(KERN_ERR "jbfs: Unable to read superblock.\n");
+    goto failed_sbi;
+  }
+
+  js = (struct jbfs_super_block *) (((char *)bh->b_data) + sb_offset); 
+  sb->s_magic = le32_to_cpu(js->s_magic);
+
+  if (sb->s_magic != JBFS_SUPER_MAGIC) {
+    printk(KERN_ERR "jbfs: Magic doesn't match (expected 0x%08x, got 0x%08x).\n", JBFS_SUPER_MAGIC, (int)sb->s_magic);
+    goto failed_mount;
+  }
+
+  blocksize = 1 << le32_to_cpu(js->s_log_block_size);
+  if (sb->s_blocksize != blocksize) {
+    brelse(bh);
+
+    if (!sb_set_blocksize(sb, blocksize)) {
+      printk(KERN_ERR "jbfs: Bad blocksize %d\n", blocksize);
+      goto failed_sbi;
+    }
+
+    goto reread_sb;
+  }
+
+  sbi->s_js = js;
+  sbi->s_sbh = bh;
+  sbi->s_flags = le64_to_cpu(js->s_flags);
+  sbi->s_num_blocks = le64_to_cpu(js->s_num_blocks);
+  sbi->s_num_groups = le64_to_cpu(js->s_num_groups);
+  sbi->s_local_inode_bits = le32_to_cpu(js->s_local_inode_bits);
+  sbi->s_group_size = le32_to_cpu(js->s_group_size);
+  sbi->s_group_data_blocks = le32_to_cpu(js->s_group_data_blocks);
+  sbi->s_group_inodes = le32_to_cpu(js->s_group_inodes);
+  sbi->s_offset_group = le32_to_cpu(js->s_offset_group);
+  sbi->s_offset_inodes = le32_to_cpu(js->s_offset_inodes);
+  sbi->s_offset_refmap = le32_to_cpu(js->s_offset_refmap);
+  sbi->s_offset_data = le32_to_cpu(js->s_offset_data);
+
+  sb->s_time_min = 0;
+  sb->s_time_max = 1ull << JBFS_TIME_SECOND_BITS;
+
+  root_inode = ERR_PTR(-ESTALE); // TODO: read root inode
+  if (IS_ERR(root_inode)) {
+    ret = PTR_ERR(root_inode);
+    printk(KERN_ERR "jbfs: Cannot get root inode.\n");
+    goto failed_mount;
+  }
+
+failed_mount:
+  brelse(bh);
+failed_sbi:
+  sb->s_fs_info = NULL;
+  kfree(sbi);
+failed:
+  return ret;
+}
+
+static void jbfs_put_super(struct super_block *sb)
+{
+  struct jbfs_sb_info *sbi = JBFS_SB(sb);
+
+  brelse(sbi->s_sbh);
+  kfree(sbi);
+}
+
+static struct dentry *jbfs_mount(struct file_system_type *fs_type, int flags, const char *dev_name, void *data)
+{
+  return mount_bdev(fs_type, flags, dev_name, data, jbfs_fill_super);
+}
+
+static struct file_system_type jbfs_fs_type = {
+  .owner = THIS_MODULE,
+  .name = "jbfs",
+  .mount = jbfs_mount,
+  .kill_sb = kill_block_super,
+  .fs_flags = FS_REQUIRES_DEV
+};
+
+struct kmem_cache *jbfs_inode_cache = NULL;
+
+static int __init jbfs_init(void)
+{
+  int ret;
+
+  jbfs_inode_cache = kmem_cache_create("jbfs_inode_cache",
+                                    sizeof(struct jbfs_inode_info),
+                                    0,
+                                    (SLAB_RECLAIM_ACCOUNT | SLAB_MEM_SPREAD),
+                                    NULL);
+
+  if (!jbfs_inode_cache) {
+    return -ENOMEM;
+  }
+
+  ret = register_filesystem(&jbfs_fs_type);
+
+  if (likely(ret == 0)) {
+    printk(KERN_INFO "jbfs: Registered jbfs.\n");
+  } else {
+    printk(KERN_ERR "jbfs: Failed to register jbfs. Error code: %d\n", ret);
+    kmem_cache_destroy(jbfs_inode_cache);
+  }
+
+  return ret;
+}
+
+static void __exit jbfs_exit(void)
+{
+  int ret;
+
+  kmem_cache_destroy(jbfs_inode_cache);
+
+  ret = unregister_filesystem(&jbfs_fs_type);
+
+  if (likely(ret == 0)) {
+    printk(KERN_INFO "jbfs: Unregistered jbfs.\n");
+  } else {
+    printk(KERN_ERR "jbfs: Failed to unregister jbfs. Error code: %d\n", ret);
+  }
+}
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Julian Blaauboer");
+MODULE_DESCRIPTION("JBFS filesystem");
+MODULE_VERSION("0.1");
+
+module_init(jbfs_init);
+module_exit(jbfs_exit);

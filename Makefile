@@ -1,5 +1,5 @@
 obj-m = jbfs.o
-jbfs-objs = super.o
+jbfs-objs = super.o inode.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules

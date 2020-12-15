@@ -66,8 +66,14 @@ struct jbfs_inode {
 
 struct jbfs_inode_info {
   uint32_t i_flags;
+  struct inode vfs_inode;
 };
 
-extern struct kmem_cache *jbfs_inode_cache;
+static inline struct jbfs_inode_info *JBFS_I(struct inode *inode)
+{
+  return container_of(inode, struct jbfs_inode_info, vfs_inode);
+}
+
+struct inode *jbfs_iget(struct super_block *sb, unsigned long ino);
 
 #endif

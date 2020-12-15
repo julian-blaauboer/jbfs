@@ -4,6 +4,7 @@
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/vfs.h>
+#include <linux/iversion.h>
 #include <linux/fs.h>
 #include "jbfs.h"
 
@@ -78,7 +79,7 @@ reread_sb:
   sb->s_time_min = 0;
   sb->s_time_max = 1ull << JBFS_TIME_SECOND_BITS;
 
-  root_inode = ERR_PTR(-ESTALE); // TODO: read root inode
+  root_inode = jbfs_iget(sb, 0);
   if (IS_ERR(root_inode)) {
     ret = PTR_ERR(root_inode);
     printk(KERN_ERR "jbfs: Cannot get root inode.\n");
@@ -115,7 +116,29 @@ static struct file_system_type jbfs_fs_type = {
   .fs_flags = FS_REQUIRES_DEV
 };
 
-struct kmem_cache *jbfs_inode_cache = NULL;
+static struct kmem_cache *jbfs_inode_cache;
+
+static struct inode *jbfs_alloc_inode(struct super_block *sb)
+{
+  struct jbfs_inode_info *ji = kmem_cache_alloc(jbfs_inode_cache, GFP_KERNEL);
+  if (!ji) {
+    return NULL;
+  }
+
+  inode_set_iversion(&ji->vfs_inode, 1);
+  return &ji->vfs_inode;
+}
+
+static void jbfs_free_inode(struct inode *inode)
+{
+  kmem_cache_free(jbfs_inode_cache, JBFS_I(inode));
+}
+
+static void init_once(void *ptr)
+{
+  struct jbfs_inode_info *ji = (struct jbfs_inode_info *)ptr;
+  inode_init_once(&ji->vfs_inode);
+}
 
 static int __init jbfs_init(void)
 {
@@ -125,7 +148,7 @@ static int __init jbfs_init(void)
                                     sizeof(struct jbfs_inode_info),
                                     0,
                                     (SLAB_RECLAIM_ACCOUNT | SLAB_MEM_SPREAD),
-                                    NULL);
+                                    init_once);
 
   if (!jbfs_inode_cache) {
     return -ENOMEM;

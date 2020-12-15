@@ -2,6 +2,7 @@
 #define JBFS_JBFS_H
 
 #include <linux/buffer_head.h>
+#include <linux/fs.h>
 
 #define JBFS_SUPER_MAGIC 0x12050109
 #define JBFS_TIME_SECOND_BITS 54
@@ -74,6 +75,18 @@ static inline struct jbfs_inode_info *JBFS_I(struct inode *inode)
   return container_of(inode, struct jbfs_inode_info, vfs_inode);
 }
 
+static inline uint64_t jbfs_encode_time(struct timespec64 *ts)
+{
+  return (ts->tv_sec << 10) + ts->tv_nsec / 1000000;
+}
+
+static inline void jbfs_decode_time(struct timespec64 *ts, uint64_t time)
+{
+  ts->tv_sec = time >> 10;
+  ts->tv_nsec = (0x3ff & time) * 1000000;
+}
+
 struct inode *jbfs_iget(struct super_block *sb, unsigned long ino);
+int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc);
 
 #endif

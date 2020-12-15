@@ -8,6 +8,39 @@
 #include <linux/fs.h>
 #include "jbfs.h"
 
+static struct kmem_cache *jbfs_inode_cache;
+
+static struct inode *jbfs_alloc_inode(struct super_block *sb)
+{
+  struct jbfs_inode_info *ji = kmem_cache_alloc(jbfs_inode_cache, GFP_KERNEL);
+  if (!ji) {
+    return NULL;
+  }
+
+  inode_set_iversion(&ji->vfs_inode, 1);
+  return &ji->vfs_inode;
+}
+
+static void jbfs_free_inode(struct inode *inode)
+{
+  kmem_cache_free(jbfs_inode_cache, JBFS_I(inode));
+}
+
+static void jbfs_put_super(struct super_block *sb)
+{
+  struct jbfs_sb_info *sbi = JBFS_SB(sb);
+
+  brelse(sbi->s_sbh);
+  kfree(sbi);
+}
+
+static const struct super_operations jbfs_sops = {
+  .alloc_inode = jbfs_alloc_inode,
+  .free_inode = jbfs_free_inode,
+  .write_inode = jbfs_write_inode,
+  .put_super = jbfs_put_super,
+};
+
 static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
 {
   struct buffer_head *bh;
@@ -76,14 +109,21 @@ reread_sb:
   sbi->s_offset_refmap = le32_to_cpu(js->s_offset_refmap);
   sbi->s_offset_data = le32_to_cpu(js->s_offset_data);
 
+  sb->s_op = &jbfs_sops;
   sb->s_time_min = 0;
   sb->s_time_max = 1ull << JBFS_TIME_SECOND_BITS;
 
-  root_inode = jbfs_iget(sb, 0);
+  root_inode = jbfs_iget(sb, 1);
   if (IS_ERR(root_inode)) {
     ret = PTR_ERR(root_inode);
     printk(KERN_ERR "jbfs: Cannot get root inode.\n");
     goto failed_mount;
+  }
+
+  ret = -ENOMEM;
+  sb->s_root = d_make_root(root_inode);
+  if (sb->s_root) {
+    return 0;
   }
 
 failed_mount:
@@ -95,13 +135,6 @@ failed:
   return ret;
 }
 
-static void jbfs_put_super(struct super_block *sb)
-{
-  struct jbfs_sb_info *sbi = JBFS_SB(sb);
-
-  brelse(sbi->s_sbh);
-  kfree(sbi);
-}
 
 static struct dentry *jbfs_mount(struct file_system_type *fs_type, int flags, const char *dev_name, void *data)
 {
@@ -116,23 +149,6 @@ static struct file_system_type jbfs_fs_type = {
   .fs_flags = FS_REQUIRES_DEV
 };
 
-static struct kmem_cache *jbfs_inode_cache;
-
-static struct inode *jbfs_alloc_inode(struct super_block *sb)
-{
-  struct jbfs_inode_info *ji = kmem_cache_alloc(jbfs_inode_cache, GFP_KERNEL);
-  if (!ji) {
-    return NULL;
-  }
-
-  inode_set_iversion(&ji->vfs_inode, 1);
-  return &ji->vfs_inode;
-}
-
-static void jbfs_free_inode(struct inode *inode)
-{
-  kmem_cache_free(jbfs_inode_cache, JBFS_I(inode));
-}
 
 static void init_once(void *ptr)
 {

@@ -64,9 +64,9 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
   i_gid_write(inode, le32_to_cpu(raw_inode->i_gid));
   jbfs_inode->i_flags = le32_to_cpu(raw_inode->i_flags);
   inode->i_size = le64_to_cpu(raw_inode->i_size);
-  jbfs_decode_time(&inode->i_ctime, le64_to_cpu(raw_inode->i_ctime));
-  jbfs_decode_time(&inode->i_atime, le64_to_cpu(raw_inode->i_atime));
   jbfs_decode_time(&inode->i_mtime, le64_to_cpu(raw_inode->i_mtime));
+  jbfs_decode_time(&inode->i_atime, le64_to_cpu(raw_inode->i_atime));
+  jbfs_decode_time(&inode->i_ctime, le64_to_cpu(raw_inode->i_ctime));
   inode->i_blocks = 0;
 
   brelse(bh);
@@ -90,9 +90,9 @@ int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc)
   raw_inode->i_uid = cpu_to_le16(fs_high2lowuid(i_uid_read(inode)));
   raw_inode->i_gid = cpu_to_le16(fs_high2lowuid(i_uid_read(inode)));
   raw_inode->i_size = cpu_to_le64(inode->i_size);
-  raw_inode->i_ctime = cpu_to_le64(jbfs_encode_time(&inode->i_ctime));
-  raw_inode->i_atime = cpu_to_le64(jbfs_encode_time(&inode->i_atime));
   raw_inode->i_mtime = cpu_to_le64(jbfs_encode_time(&inode->i_mtime));
+  raw_inode->i_atime = cpu_to_le64(jbfs_encode_time(&inode->i_atime));
+  raw_inode->i_ctime = cpu_to_le64(jbfs_encode_time(&inode->i_ctime));
 
   mark_buffer_dirty(bh);
   if (wbc->sync_mode == WB_SYNC_ALL && buffer_dirty(bh)) {

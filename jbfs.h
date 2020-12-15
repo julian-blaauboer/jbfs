@@ -58,9 +58,9 @@ struct jbfs_inode {
   __le32 i_gid;
   __le32 i_flags;
   __le64 i_size;
-  __le64 i_ctime;
-  __le64 i_atime;
   __le64 i_mtime;
+  __le64 i_atime;
+  __le64 i_ctime;
   __le64 i_extents[12][2];
   __le64 i_cont;
 };

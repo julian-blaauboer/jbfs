@@ -97,6 +97,7 @@ reread_sb:
 
   sbi->s_js = js;
   sbi->s_sbh = bh;
+  sbi->s_log_block_size = le32_to_cpu(js->s_log_block_size);
   sbi->s_flags = le64_to_cpu(js->s_flags);
   sbi->s_num_blocks = le64_to_cpu(js->s_num_blocks);
   sbi->s_num_groups = le64_to_cpu(js->s_num_groups);

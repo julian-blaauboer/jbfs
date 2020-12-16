@@ -31,6 +31,7 @@ struct jbfs_super_block {
 struct jbfs_sb_info {
   struct jbfs_super_block *s_js;
   struct buffer_head *s_sbh;
+  uint32_t s_log_block_size;
   uint64_t s_flags;
   uint64_t s_num_blocks;
   uint64_t s_num_groups;
@@ -67,6 +68,8 @@ struct jbfs_inode {
 
 struct jbfs_inode_info {
   uint32_t i_flags;
+  uint64_t i_extents[12][2];
+  uint64_t i_cont;
   struct inode vfs_inode;
 };
 

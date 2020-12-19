@@ -92,4 +92,6 @@ static inline void jbfs_decode_time(struct timespec64 *ts, uint64_t time)
 struct inode *jbfs_iget(struct super_block *sb, unsigned long ino);
 int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc);
 
+extern const struct file_operations jbfs_dir_operations;
+extern const struct inode_operations  jbfs_dir_inode_operations;
 #endif

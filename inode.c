@@ -35,7 +35,6 @@ static int jbfs_get_block(struct inode *inode, sector_t iblock, struct buffer_he
   // TODO: Allocate new space
 
   map_bh(bh_result, inode->i_sb, block);
-  bh_result->b_size = 1 << inode->i_blkbits;
   return 0;
 }
 
@@ -162,6 +161,8 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
   if (S_ISREG(inode->i_mode)) {
     inode->i_mapping->a_ops = &jbfs_aops;
   } else if (S_ISDIR(inode->i_mode)) {
+    inode->i_op = &jbfs_dir_inode_operations;
+    inode->i_fop = &jbfs_dir_operations;
     inode->i_mapping->a_ops = &jbfs_aops;
   } else if (S_ISLNK(inode->i_mode)) {
     inode->i_mapping->a_ops = &jbfs_aops;

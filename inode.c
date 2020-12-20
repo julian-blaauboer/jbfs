@@ -155,7 +155,7 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
     uint64_t end   = le64_to_cpu(raw_inode->i_extents[i][1]);
     jbfs_inode->i_extents[i][0] = start;
     jbfs_inode->i_extents[i][1] = end;
-    inode->i_blocks += end - start + !!start  << sbi->s_log_block_size - 9;
+    inode->i_blocks += (end - start + !!start)  << sbi->s_log_block_size - 9;
   }
 
   if (S_ISREG(inode->i_mode)) {

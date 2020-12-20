@@ -50,6 +50,7 @@ static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
   int sb_block, sb_offset;
   int blocksize;
   int ret = -ENOMEM;
+  int i;
 
   sbi = kzalloc(sizeof(*sbi), GFP_KERNEL);
   if (!sbi) {
@@ -109,6 +110,9 @@ reread_sb:
   sbi->s_offset_inodes = le32_to_cpu(js->s_offset_inodes);
   sbi->s_offset_refmap = le32_to_cpu(js->s_offset_refmap);
   sbi->s_offset_data = le32_to_cpu(js->s_offset_data);
+
+  for (i = 0; i < JBFS_GROUP_N_LOCKS; ++i)
+    spin_lock_init(&sbi->s_group_lock[i]);
 
   sb->s_op = &jbfs_sops;
   sb->s_time_min = 0;

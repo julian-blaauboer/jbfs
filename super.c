@@ -62,7 +62,7 @@ static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
 
   blocksize = sb_min_blocksize(sb, 1024);
   if (!blocksize) {
-    printk(KERN_ERR "jbfs: Unable to set blocksize.\n");
+    printk(KERN_ERR "jbfs: unable to set blocksize.\n");
     goto failed_sbi;
   }
 
@@ -72,7 +72,7 @@ reread_sb:
 
   bh = sb_bread(sb, sb_block);
   if (!bh) {
-    printk(KERN_ERR "jbfs: Unable to read superblock.\n");
+    printk(KERN_ERR "jbfs: unable to read superblock.\n");
     goto failed_sbi;
   }
 
@@ -80,7 +80,7 @@ reread_sb:
   sb->s_magic = le32_to_cpu(js->s_magic);
 
   if (sb->s_magic != JBFS_SUPER_MAGIC) {
-    printk(KERN_ERR "jbfs: Magic doesn't match (expected 0x%08x, got 0x%08x).\n", JBFS_SUPER_MAGIC, (int)sb->s_magic);
+    printk(KERN_ERR "jbfs: magic doesn't match (expected 0x%08x, got 0x%08x).\n", JBFS_SUPER_MAGIC, (int)sb->s_magic);
     goto failed_mount;
   }
 
@@ -89,7 +89,7 @@ reread_sb:
     brelse(bh);
 
     if (!sb_set_blocksize(sb, blocksize)) {
-      printk(KERN_ERR "jbfs: Bad blocksize %d\n", blocksize);
+      printk(KERN_ERR "jbfs: bad blocksize %d\n", blocksize);
       goto failed_sbi;
     }
 
@@ -117,11 +117,13 @@ reread_sb:
   sb->s_op = &jbfs_sops;
   sb->s_time_min = 0;
   sb->s_time_max = 1ull << JBFS_TIME_SECOND_BITS;
+  // TODO: Support i_cont
+  sb->s_maxbytes = 12 * (sbi->group_data_blocks << sbi->s_log_block_size);
 
   root_inode = jbfs_iget(sb, 1);
   if (IS_ERR(root_inode)) {
     ret = PTR_ERR(root_inode);
-    printk(KERN_ERR "jbfs: Cannot get root inode.\n");
+    printk(KERN_ERR "jbfs: cannot get root inode.\n");
     goto failed_mount;
   }
 
@@ -178,9 +180,9 @@ static int __init jbfs_init(void)
   ret = register_filesystem(&jbfs_fs_type);
 
   if (likely(ret == 0)) {
-    printk(KERN_INFO "jbfs: Registered jbfs.\n");
+    printk(KERN_INFO "jbfs: registered jbfs.\n");
   } else {
-    printk(KERN_ERR "jbfs: Failed to register jbfs. Error code: %d\n", ret);
+    printk(KERN_ERR "jbfs: failed to register jbfs. Error code: %d\n", ret);
     kmem_cache_destroy(jbfs_inode_cache);
   }
 
@@ -196,9 +198,9 @@ static void __exit jbfs_exit(void)
   ret = unregister_filesystem(&jbfs_fs_type);
 
   if (likely(ret == 0)) {
-    printk(KERN_INFO "jbfs: Unregistered jbfs.\n");
+    printk(KERN_INFO "jbfs: unregistered jbfs.\n");
   } else {
-    printk(KERN_ERR "jbfs: Failed to unregister jbfs. Error code: %d\n", ret);
+    printk(KERN_ERR "jbfs: failed to unregister jbfs. Error code: %d\n", ret);
   }
 }
 

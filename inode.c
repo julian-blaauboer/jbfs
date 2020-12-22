@@ -29,11 +29,22 @@ static int jbfs_get_block(struct inode *inode, sector_t iblock, struct buffer_he
     iblock -= len;
   }
 
-  if (ret < 0)
+  if (ret == 0)
+    goto out;
+
+  if (!create)
     return ret;
 
-  // TODO: Allocate new space
+  block = jbfs_new_block(inode, &ret);
+  if (ret == 0) {
+    set_buffer_new(bh_result);
+    goto out;
+  }
 
+  printk(KERN_WARNING "jbfs: allocating new block for inode %lu failed with code %d\n", inode->i_ino, ret);
+  return ret;
+
+out:
   map_bh(bh_result, inode->i_sb, block);
   return 0;
 }
@@ -51,6 +62,8 @@ static int jbfs_readpage(struct file *file, struct page *page)
 static void jbfs_write_failed(struct address_space *mapping, loff_t to)
 {
   struct inode *inode = mapping->host;
+
+  printk(KERN_ERR "jbfs: failed to write to inode %lu\n", inode->i_ino);
 
   if (to > inode->i_size) {
     truncate_pagecache(inode, inode->i_size);
@@ -91,7 +104,7 @@ static struct jbfs_inode *jbfs_raw_inode(struct super_block *sb, unsigned long i
   local = ino & ((1ull << sbi->s_local_inode_bits) - 1);
   pos   = (sbi->s_offset_group + sbi->s_offset_inodes +
           group * sbi->s_group_size) * sb->s_blocksize +
-          (local - 1) * sizeof(struct jbfs_inode);
+          (local - 1) * JBFS_INODE_SIZE;
 
   *bh = sb_bread(sb, pos / sb->s_blocksize);
   if (!*bh) {
@@ -100,6 +113,23 @@ static struct jbfs_inode *jbfs_raw_inode(struct super_block *sb, unsigned long i
   }
 
   return (struct jbfs_inode *) (((char *)(*bh)->b_data) + pos % sb->s_blocksize);
+}
+
+void jbfs_set_inode(struct inode *inode, dev_t dev)
+{
+  if (S_ISREG(inode->i_mode)) {
+    inode->i_op = &jbfs_file_inode_operations;
+    inode->i_fop = &jbfs_file_operations;
+    inode->i_mapping->a_ops = &jbfs_aops;
+  } else if (S_ISDIR(inode->i_mode)) {
+    inode->i_op = &jbfs_dir_inode_operations;
+    inode->i_fop = &jbfs_dir_operations;
+    inode->i_mapping->a_ops = &jbfs_aops;
+  } else if (S_ISLNK(inode->i_mode)) {
+    inode->i_mapping->a_ops = &jbfs_aops;
+  } else {
+
+  }
 }
 
 struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
@@ -155,20 +185,10 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
     uint64_t end   = le64_to_cpu(raw_inode->i_extents[i][1]);
     jbfs_inode->i_extents[i][0] = start;
     jbfs_inode->i_extents[i][1] = end;
-    inode->i_blocks += (end - start + !!start)  << sbi->s_log_block_size - 9;
+    inode->i_blocks += (end - start + !!start)  << (sbi->s_log_block_size - 9);
   }
 
-  if (S_ISREG(inode->i_mode)) {
-    inode->i_mapping->a_ops = &jbfs_aops;
-  } else if (S_ISDIR(inode->i_mode)) {
-    inode->i_op = &jbfs_dir_inode_operations;
-    inode->i_fop = &jbfs_dir_operations;
-    inode->i_mapping->a_ops = &jbfs_aops;
-  } else if (S_ISLNK(inode->i_mode)) {
-    inode->i_mapping->a_ops = &jbfs_aops;
-  } else {
-
-  }
+  jbfs_set_inode(inode, 0); // TODO: Device support
 
   brelse(bh);
   unlock_new_inode(inode);
@@ -210,10 +230,20 @@ int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc)
   if (wbc->sync_mode == WB_SYNC_ALL && buffer_dirty(bh)) {
     sync_dirty_buffer(bh);
     if (buffer_req(bh) && !buffer_uptodate(bh)) {
-      printk(KERN_WARNING "jbfs: Unable to sync inode %lu.\n", inode->i_ino);
+      printk(KERN_WARNING "jbfs: unable to sync inode %lu.\n", inode->i_ino);
       ret = -EIO;
     }
   }
   brelse(bh);
   return ret;
+}
+
+int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask, unsigned int flags)
+{
+  struct super_block *sb = path->dentry->d_sb;
+  struct inode *inode = d_inode(path->dentry);
+
+  generic_fillattr(inode, stat);
+  stat->blksize = sb->s_blocksize;
+  return 0;
 }

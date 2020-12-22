@@ -7,8 +7,8 @@
 #define JBFS_SUPER_MAGIC 0x12050109
 #define JBFS_TIME_SECOND_BITS 54
 #define JBFS_LINK_MAX 65535
-#define JBFS_SIZE_MAX 4096 // TODO
 #define JBFS_GROUP_N_LOCKS 32
+#define JBFS_INODE_SIZE 256
 
 #define JBFS_SB(sb) ((struct jbfs_sb_info *)sb->s_fs_info)
 
@@ -78,6 +78,13 @@ struct jbfs_inode_info {
   struct inode vfs_inode;
 };
 
+struct jbfs_dirent {
+  __le64 d_inode;
+  __le16 d_size;
+  __u8 d_length;
+  char name[];
+};
+
 static inline struct jbfs_inode_info *JBFS_I(struct inode *inode)
 {
   return container_of(inode, struct jbfs_inode_info, vfs_inode);
@@ -94,9 +101,17 @@ static inline void jbfs_decode_time(struct timespec64 *ts, uint64_t time)
   ts->tv_nsec = (0x3ff & time) * 1000000;
 }
 
+void jbfs_set_inode(struct inode *inode, dev_t dev);
 struct inode *jbfs_iget(struct super_block *sb, unsigned long ino);
 int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc);
 
+uint64_t jbfs_new_block(struct inode *inode, int *err);
+struct inode *jbfs_new_inode(struct inode *dir, umode_t mode);
+
+int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask, unsigned int flags);
+
 extern const struct file_operations jbfs_dir_operations;
 extern const struct inode_operations  jbfs_dir_inode_operations;
+extern const struct file_operations jbfs_file_operations;
+extern const struct inode_operations  jbfs_file_inode_operations;
 #endif

@@ -3,6 +3,7 @@
 
 static int jbfs_readdir(struct file *file, struct dir_context *ctx)
 {
+  dir_emit(ctx, "foo", 3, 2, DT_UNKNOWN); // TODO: TESTING CODE REMOVE
   return 0;
 }
 

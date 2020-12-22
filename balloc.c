@@ -118,7 +118,7 @@ static uint64_t jbfs_find_free(struct inode *inode, int n, int *err)
 {
   struct super_block *sb = inode->i_sb;
   struct jbfs_sb_info *sbi = JBFS_SB(sb);
-  uint64_t start, group, i, block;
+  uint64_t start, group, block;
 
   start = inode->i_ino >> sbi->s_local_inode_bits;
   group = start;
@@ -149,20 +149,20 @@ uint64_t jbfs_new_block(struct inode *inode, int *err)
       break;
   }
 
-  if (jbfs_inode->i_extents[i][0]) {
-    *err = -ENOSPC;
-    return 0;
-  }
-
   if (i > 0) {
-    n = jbfs_alloc_blocks(inode->i_sb, jbfs_inode->i_extents[i][1], 1, err);
-    jbfs_inode->i_extents[i][1] += n;
+    n = jbfs_alloc_blocks(inode->i_sb, jbfs_inode->i_extents[i-1][1] + 1, 1, err);
+    jbfs_inode->i_extents[i-1][1] += n;
     if (*err)
       goto out;
     if (n) {
       *err = 0;
       goto out;
     }
+  }
+
+  if (jbfs_inode->i_extents[i][0]) {
+    *err = -ENOSPC;
+    return 0;
   }
 
   start = jbfs_find_free(inode, 1, err);

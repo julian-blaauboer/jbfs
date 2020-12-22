@@ -118,7 +118,7 @@ reread_sb:
   sb->s_time_min = 0;
   sb->s_time_max = 1ull << JBFS_TIME_SECOND_BITS;
   // TODO: Support i_cont
-  sb->s_maxbytes = 12 * (sbi->group_data_blocks << sbi->s_log_block_size);
+  sb->s_maxbytes = 12 * (sbi->s_group_data_blocks << sbi->s_log_block_size);
 
   root_inode = jbfs_iget(sb, 1);
   if (IS_ERR(root_inode)) {
@@ -182,7 +182,7 @@ static int __init jbfs_init(void)
   if (likely(ret == 0)) {
     printk(KERN_INFO "jbfs: registered jbfs.\n");
   } else {
-    printk(KERN_ERR "jbfs: failed to register jbfs. Error code: %d\n", ret);
+    printk(KERN_ERR "jbfs: failed to register jbfs. error code: %d\n", ret);
     kmem_cache_destroy(jbfs_inode_cache);
   }
 
@@ -200,7 +200,7 @@ static void __exit jbfs_exit(void)
   if (likely(ret == 0)) {
     printk(KERN_INFO "jbfs: unregistered jbfs.\n");
   } else {
-    printk(KERN_ERR "jbfs: failed to unregister jbfs. Error code: %d\n", ret);
+    printk(KERN_ERR "jbfs: failed to unregister jbfs. error code: %d\n", ret);
   }
 }
 

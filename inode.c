@@ -6,7 +6,7 @@
 #include <linux/writeback.h>
 #include "jbfs.h"
 
-static int jbfs_get_block(struct inode *inode, sector_t iblock, struct buffer_head *bh_result, int create)
+int jbfs_get_block(struct inode *inode, sector_t iblock, struct buffer_head *bh_result, int create)
 {
   struct jbfs_inode_info *jbfs_inode;
   sector_t block;

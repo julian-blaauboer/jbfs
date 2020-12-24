@@ -79,10 +79,10 @@ struct jbfs_inode_info {
 };
 
 struct jbfs_dirent {
-  __le64 d_inode;
+  __le64 d_ino;
   __le16 d_size;
-  __u8 d_length;
-  char name[];
+  __u8 d_len;
+  char d_name[];
 };
 
 static inline struct jbfs_inode_info *JBFS_I(struct inode *inode)
@@ -101,12 +101,16 @@ static inline void jbfs_decode_time(struct timespec64 *ts, uint64_t time)
   ts->tv_nsec = (0x3ff & time) * 1000000;
 }
 
+int jbfs_get_block(struct inode *inode, sector_t iblock, struct buffer_head *bh_result, int create);
 void jbfs_set_inode(struct inode *inode, dev_t dev);
 struct inode *jbfs_iget(struct super_block *sb, unsigned long ino);
 int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc);
 
 uint64_t jbfs_new_block(struct inode *inode, int *err);
 struct inode *jbfs_new_inode(struct inode *dir, umode_t mode);
+
+int jbfs_add_link(struct dentry *dentry, struct inode *inode);
+ino_t jbfs_inode_by_name(struct dentry *dentry);
 
 int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask, unsigned int flags);
 

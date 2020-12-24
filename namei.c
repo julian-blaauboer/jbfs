@@ -118,11 +118,33 @@ static int jbfs_symlink(struct inode *dir, struct dentry *dentry, const char *na
   return add_nondir(dentry, inode);
 }
 
+static int jbfs_unlink(struct inode *dir, struct dentry *dentry)
+{
+  struct inode *inode = d_inode(dentry);
+  struct jbfs_dirent *de;
+  struct page *page;
+  int err;
+
+  de = jbfs_find_entry(dentry, &page);
+  if (IS_ERR(de))
+    return PTR_ERR(de);
+
+  err = jbfs_delete_entry(de, page);
+  if (err)
+    return err;
+
+  inode->i_ctime = dir->i_ctime;
+  inode_dec_link_count(inode);
+  return 0;
+  
+}
+
 const struct inode_operations jbfs_dir_inode_operations = {
   .create = jbfs_create,
   .link = jbfs_link,
   .lookup = jbfs_lookup,
   .mkdir = jbfs_mkdir,
   .mknod = jbfs_mknod,
-  .symlink = jbfs_symlink
+  .symlink = jbfs_symlink,
+  .unlink = jbfs_unlink
 };

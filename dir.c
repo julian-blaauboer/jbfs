@@ -184,7 +184,52 @@ out:
   return err;
 }
 
-static struct jbfs_dirent *jbfs_find_entry(struct dentry *dentry, struct page **res_page)
+int jbfs_delete_entry(struct jbfs_dirent *dir, struct page *page)
+{
+  struct inode *inode = page->mapping->host;
+  char *kaddr = page_address(page);
+  int err = 0;
+
+  uint64_t start = ((char*)dir - kaddr) & ~(inode->i_sb->s_blocksize - 1);
+  uint64_t end = (char*)dir - kaddr + le16_to_cpu(dir->d_size);
+  loff_t pos;
+
+  struct jbfs_dirent *prev = NULL;
+  struct jbfs_dirent *de = (struct jbfs_dirent *)(kaddr + start);
+
+  while (de < dir) {
+    if (de->d_size == 0) {
+      printk(KERN_ERR "jbfs: zero-length directory entry.\n");
+      err = -EIO;
+      goto out;
+    }
+
+    prev = de;
+    de = (struct jbfs_dirent *)((char *)de + le16_to_cpu(de->d_size));
+  }
+
+  if (prev)
+    start = (char*)prev - kaddr;
+
+  pos = kaddr + start;
+  lock_page(page);
+  err = __block_write_begin(page, pos, end - start, jbfs_get_block);
+  if (err)
+    goto out;
+
+  if (prev)
+    prev->d_size = cpu_to_le16(end - start);
+
+  dir->d_ino = 0;
+  err = commit_chunk(page, pos, end - start);
+  inode->i_ctime = inode->i_mtime = current_time(inode);
+  mark_inode_dirty(inode);
+out:
+  dir_put_page(page);
+  return err;
+}
+
+struct jbfs_dirent *jbfs_find_entry(struct dentry *dentry, struct page **res_page)
 {
   const char *name = dentry->d_name.name;
   int len = dentry->d_name.len;

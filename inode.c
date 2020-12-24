@@ -259,7 +259,7 @@ void jbfs_evict_inode(struct inode *inode)
   }
   invalidate_inode_buffers(inode);
   clear_inode(inode);
-  // TODO: Free inode on disk
+  jbfs_delete_inode(inode);
 }
 
 int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask, unsigned int flags)

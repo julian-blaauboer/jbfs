@@ -68,3 +68,23 @@ found:
 
   return inode;
 }
+
+int jbfs_delete_inode(struct inode *inode)
+{
+  struct super_block *sb = inode->i_sb;
+  struct jbfs_sb_info *sbi = JBFS_SB(sb);
+  struct buffer_head *bh;
+  uint64_t group = inode->i_ino >> sbi->s_local_inode_bits;
+  uint64_t local = (inode->i_ino & ((1ull << sbi->s_local_inode_bits) - 1)) - 1;
+  uint64_t block = sbi->s_offset_group + group * sbi->s_group_size + 1 + (local >> (sbi->s_log_block_size + 3));
+  local &= sb->s_blocksize * 8 - 1;
+
+  bh = sb_bread(sb, block);
+  if (!bh)
+    return -EIO;
+
+  clear_bit(local, (unsigned long*)bh->b_data);
+  mark_buffer_dirty(bh);
+  brelse(bh);
+  return 0;
+}

@@ -94,7 +94,7 @@ int jbfs_add_link(struct dentry *dentry, struct inode *inode)
         err = -EIO;
         goto out_unlock;
       }
-      if (len == len_needed && !memcmp(name, de->d_name, len)) {
+      if (de->d_ino && len == len_needed && !memcmp(name, de->d_name, len)) {
         err = -EEXIST;
         goto out_unlock;
       }
@@ -211,7 +211,7 @@ int jbfs_delete_entry(struct jbfs_dirent *dir, struct page *page)
   if (prev)
     start = (char*)prev - kaddr;
 
-  pos = kaddr + start;
+  pos = (loff_t)(kaddr + start);
   lock_page(page);
   err = __block_write_begin(page, pos, end - start, jbfs_get_block);
   if (err)

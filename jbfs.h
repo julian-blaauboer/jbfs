@@ -109,6 +109,7 @@ void jbfs_evict_inode(struct inode *inode);
 
 uint64_t jbfs_new_block(struct inode *inode, int *err);
 struct inode *jbfs_new_inode(struct inode *dir, umode_t mode);
+int jbfs_delete_inode(struct inode *inode);
 
 int jbfs_add_link(struct dentry *dentry, struct inode *inode);
 struct jbfs_dirent *jbfs_find_entry(struct dentry *dentry, struct page **res_page);

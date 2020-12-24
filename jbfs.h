@@ -105,6 +105,7 @@ int jbfs_get_block(struct inode *inode, sector_t iblock, struct buffer_head *bh_
 void jbfs_set_inode(struct inode *inode, dev_t dev);
 struct inode *jbfs_iget(struct super_block *sb, unsigned long ino);
 int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc);
+void jbfs_evict_inode(struct inode *inode);
 
 uint64_t jbfs_new_block(struct inode *inode, int *err);
 struct inode *jbfs_new_inode(struct inode *dir, umode_t mode);

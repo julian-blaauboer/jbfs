@@ -122,7 +122,7 @@ got_it:
   if (de->d_ino) {
     struct jbfs_dirent *new_de = (struct jbfs_dirent *)((char *)de + min_size);
     de->d_size = cpu_to_le16(min_size);
-    new_de->d_size = cpu_to_le16(size_needed);
+    new_de->d_size = cpu_to_le16(size - min_size);
     de = new_de;
   }
 

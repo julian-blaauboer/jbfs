@@ -35,18 +35,24 @@ int jbfs_get_block(struct inode *inode, sector_t iblock, struct buffer_head *bh_
   if (!create)
     return ret;
 
-  block = jbfs_new_block(inode, &ret);
-  if (ret == 0) {
-    set_buffer_new(bh_result);
-    goto out;
+  while (iblock--) {
+    jbfs_new_block(inode, &ret);
+    if (ret)
+      goto out_err;
   }
 
-  printk(KERN_WARNING "jbfs: allocating new block for inode %lu failed with code %d\n", inode->i_ino, ret);
-  return ret;
+  block = jbfs_new_block(inode, &ret);
+  if (ret)
+    goto out_err;
 
+  set_buffer_new(bh_result);
 out:
   map_bh(bh_result, inode->i_sb, block);
   return 0;
+
+out_err:
+  printk(KERN_WARNING "jbfs: allocating new block for inode %lu failed with code %d\n", inode->i_ino, ret);
+  return ret;
 }
 
 static int jbfs_writepage(struct page *page, struct writeback_control *wbc)
@@ -162,7 +168,7 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
 
   nlinks = le16_to_cpu(raw_inode->i_nlinks);
   if (nlinks == 0) {
-    printk("jbfs: Deleted inode referenced: %lu.\n", ino);
+    printk("jbfs: deleted inode referenced: %lu.\n", ino);
     brelse(bh);
     iget_failed(inode);
     return ERR_PTR(-ESTALE);
@@ -181,11 +187,8 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
 
   inode->i_blocks = 0;
   for (i = 0; i < 12; ++i) {
-    uint64_t start = le64_to_cpu(raw_inode->i_extents[i][0]);
-    uint64_t end   = le64_to_cpu(raw_inode->i_extents[i][1]);
-    jbfs_inode->i_extents[i][0] = start;
-    jbfs_inode->i_extents[i][1] = end;
-    inode->i_blocks += (end - start + !!start)  << (sbi->s_log_block_size - 9);
+    jbfs_inode->i_extents[i][0] = le64_to_cpu(raw_inode->i_extents[i][0]);
+    jbfs_inode->i_extents[i][1] = le64_to_cpu(raw_inode->i_extents[i][1]);
   }
 
   jbfs_set_inode(inode, 0); // TODO: Device support
@@ -205,6 +208,7 @@ int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc)
 
   raw_inode = jbfs_raw_inode(inode->i_sb, inode->i_ino, &bh);
   if (!raw_inode) {
+    printk(KERN_WARNING "jbfs: unable to get raw inode %lu.\n", inode->i_ino);
     return -EIO;
   }
 
@@ -238,12 +242,36 @@ int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc)
   return ret;
 }
 
+void jbfs_evict_inode(struct inode *inode)
+{
+  truncate_inode_pages_final(&inode->i_data);
+  if (!inode->i_nlink) {
+    inode->i_size = 0;
+    // TODO: Truncate
+  }
+  invalidate_inode_buffers(inode);
+  clear_inode(inode);
+  // TODO: Free inode on disk
+}
+
 int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask, unsigned int flags)
 {
   struct super_block *sb = path->dentry->d_sb;
+  struct jbfs_sb_info *sbi = JBFS_SB(sb);
   struct inode *inode = d_inode(path->dentry);
+  struct jbfs_inode_info *ji = JBFS_I(inode);
+  int i;
 
   generic_fillattr(inode, stat);
+
+  // TODO: support i_cont
+  stat->blocks = 0;
+  for (i = 0; i < 12; ++i) {
+    uint64_t start = ji->i_extents[i][0];
+    uint64_t end   = ji->i_extents[i][1];
+    stat->blocks += (end - start + !!start) << (sbi->s_log_block_size - 9);
+  }
+
   stat->blksize = sb->s_blocksize;
   return 0;
 }

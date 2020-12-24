@@ -48,6 +48,8 @@ found:
   inode = new_inode(sb);
   ji = JBFS_I(inode);
 
+  inode_init_owner(inode, dir, mode);
+
   inode->i_ino = (local + 1) | group << sbi->s_local_inode_bits;
   inode->i_blocks = 0;
   inode->i_mtime = inode->i_atime = inode->i_ctime = current_time(inode);
@@ -61,17 +63,8 @@ found:
   // TODO: Support i_cont
   ji->i_cont = 0;
 
-  if (insert_inode_locked(inode) < 0) {
-    make_bad_inode(inode);
-    iput(inode);
-    return ERR_PTR(-EIO);
-  }
-
-  inode_init_owner(inode, dir, mode);
   insert_inode_hash(inode);
   mark_inode_dirty(inode);
-
-  printk(KERN_INFO "jbfs: allocated new inode %lu\n", inode->i_ino);
 
   return inode;
 }

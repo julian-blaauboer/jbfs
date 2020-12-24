@@ -40,6 +40,7 @@ static int jbfs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, de
     return PTR_ERR(inode);
 
   jbfs_set_inode(inode, rdev);
+  mark_inode_dirty(inode);
   return add_nondir(dentry, inode);
 }
 

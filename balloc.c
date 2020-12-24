@@ -156,6 +156,7 @@ uint64_t jbfs_new_block(struct inode *inode, int *err)
       goto out;
     if (n) {
       *err = 0;
+      i -= 1;
       goto out;
     }
   }

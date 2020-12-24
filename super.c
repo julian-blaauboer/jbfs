@@ -30,6 +30,7 @@ static void jbfs_put_super(struct super_block *sb)
 {
   struct jbfs_sb_info *sbi = JBFS_SB(sb);
 
+  sb->s_fs_info = NULL;
   brelse(sbi->s_sbh);
   kfree(sbi);
 }
@@ -38,6 +39,7 @@ static const struct super_operations jbfs_sops = {
   .alloc_inode = jbfs_alloc_inode,
   .free_inode = jbfs_free_inode,
   .write_inode = jbfs_write_inode,
+  .evict_inode = jbfs_evict_inode,
   .put_super = jbfs_put_super,
 };
 
@@ -170,7 +172,7 @@ static int __init jbfs_init(void)
   jbfs_inode_cache = kmem_cache_create("jbfs_inode_cache",
                                     sizeof(struct jbfs_inode_info),
                                     0,
-                                    (SLAB_RECLAIM_ACCOUNT | SLAB_MEM_SPREAD),
+                                    (SLAB_RECLAIM_ACCOUNT | SLAB_MEM_SPREAD | SLAB_ACCOUNT),
                                     init_once);
 
   if (!jbfs_inode_cache) {

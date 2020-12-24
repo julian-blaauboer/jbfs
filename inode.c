@@ -101,6 +101,11 @@ static const struct address_space_operations jbfs_aops = {
   .bmap = jbfs_bmap
 };
 
+static const struct inode_operations jbfs_symlink_inode_operations = {
+  .get_link = page_get_link,
+  .getattr = jbfs_getattr
+};
+
 static struct jbfs_inode *jbfs_raw_inode(struct super_block *sb, unsigned long ino, struct buffer_head **bh)
 {
   struct jbfs_sb_info *sbi = JBFS_SB(sb);
@@ -132,9 +137,11 @@ void jbfs_set_inode(struct inode *inode, dev_t dev)
     inode->i_fop = &jbfs_dir_operations;
     inode->i_mapping->a_ops = &jbfs_aops;
   } else if (S_ISLNK(inode->i_mode)) {
+    inode->i_op = &jbfs_symlink_inode_operations;
+    inode_nohighmem(inode);
     inode->i_mapping->a_ops = &jbfs_aops;
   } else {
-
+    init_special_inode(inode, inode->i_mode, dev);
   }
 }
 
@@ -191,7 +198,7 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
     jbfs_inode->i_extents[i][1] = le64_to_cpu(raw_inode->i_extents[i][1]);
   }
 
-  jbfs_set_inode(inode, 0); // TODO: Device support
+  jbfs_set_inode(inode, new_decode_dev(raw_inode->i_extents[0][0]));
 
   brelse(bh);
   unlock_new_inode(inode);
@@ -223,12 +230,13 @@ int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc)
   raw_inode->i_mtime = cpu_to_le64(jbfs_encode_time(&inode->i_mtime));
   raw_inode->i_atime = cpu_to_le64(jbfs_encode_time(&inode->i_atime));
   raw_inode->i_ctime = cpu_to_le64(jbfs_encode_time(&inode->i_ctime));
-  for (i = 0; i < 12; ++i) {
+  if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode))
+    raw_inode->i_extents[0][0] = cpu_to_le64(new_decode_dev(inode->i_rdev));
+  else for (i = 0; i < 12; ++i) {
     raw_inode->i_extents[i][0] = cpu_to_le64(jbfs_inode->i_extents[i][0]);
     raw_inode->i_extents[i][1] = cpu_to_le64(jbfs_inode->i_extents[i][1]);
   }
   raw_inode->i_cont = cpu_to_le64(jbfs_inode->i_cont);
-
 
   mark_buffer_dirty(bh);
   if (wbc->sync_mode == WB_SYNC_ALL && buffer_dirty(bh)) {

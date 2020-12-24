@@ -56,6 +56,44 @@ static int jbfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry
   return add_nondir(dentry, inode);
 }
 
+static int jbfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
+{
+  struct inode *inode;
+  int err;
+
+  inode_inc_link_count(dir);
+
+  inode = jbfs_new_inode(dir, S_IFDIR | mode);
+  if (IS_ERR(inode)) {
+    err = PTR_ERR(inode);
+    goto out_dir;
+  }
+
+  jbfs_set_inode(inode, 0);
+
+  inode_inc_link_count(inode);
+
+  err = jbfs_make_empty(inode, dir);
+  if (err)
+    goto out_fail;
+
+  err = jbfs_add_link(dentry, inode);
+  if (err)
+    goto out_fail;
+
+  d_instantiate(dentry, inode);
+out:
+  return err;
+
+out_fail:
+  inode_dec_link_count(inode);
+  inode_dec_link_count(inode);
+  iput(inode);
+out_dir:
+  inode_dec_link_count(dir);
+  goto out;
+}
+
 static int jbfs_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 {
   struct inode *inode;
@@ -84,6 +122,7 @@ const struct inode_operations jbfs_dir_inode_operations = {
   .create = jbfs_create,
   .link = jbfs_link,
   .lookup = jbfs_lookup,
+  .mkdir = jbfs_mkdir,
   .mknod = jbfs_mknod,
   .symlink = jbfs_symlink
 };

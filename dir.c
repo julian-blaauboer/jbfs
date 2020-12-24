@@ -143,6 +143,47 @@ out_unlock:
   goto out_put;
 }
 
+int jbfs_make_empty(struct inode *inode, struct inode *parent)
+{
+  struct page *page = grab_cache_page(inode->i_mapping, 0);
+  struct jbfs_dirent *de;
+  unsigned chunk_size = inode->i_sb->s_blocksize;
+  void *kaddr;
+  int err;
+
+  if (!page)
+    return -ENOMEM;
+
+  err = __block_write_begin(page, 0, chunk_size, jbfs_get_block);
+  if (err) {
+    unlock_page(page);
+    goto out;
+  }
+
+  kaddr = kmap_atomic(page);
+  memset(kaddr, 0, chunk_size);
+
+  de = (struct jbfs_dirent *)kaddr;
+  de->d_ino = cpu_to_le64(inode->i_ino);
+  de->d_size = cpu_to_le16(16);
+  de->d_len = 1;
+  de->d_name[0] = '.';
+
+  de = (struct jbfs_dirent *)((char *)kaddr + 16);
+  de->d_ino = cpu_to_le64(parent->i_ino);
+  de->d_size = cpu_to_le16(chunk_size - 16);
+  de->d_len = 2;
+  de->d_name[0] = '.';
+  de->d_name[1] = '.';
+
+  kunmap_atomic(kaddr);
+  err = commit_chunk(page, 0, chunk_size);
+
+out:
+  put_page(page);
+  return err;
+}
+
 static struct jbfs_dirent *jbfs_find_entry(struct dentry *dentry, struct page **res_page)
 {
   const char *name = dentry->d_name.name;

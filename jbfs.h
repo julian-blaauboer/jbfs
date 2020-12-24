@@ -111,6 +111,7 @@ uint64_t jbfs_new_block(struct inode *inode, int *err);
 struct inode *jbfs_new_inode(struct inode *dir, umode_t mode);
 
 int jbfs_add_link(struct dentry *dentry, struct inode *inode);
+int jbfs_make_empty(struct inode *inode, struct inode *parent);
 ino_t jbfs_inode_by_name(struct dentry *dentry);
 
 int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask, unsigned int flags);

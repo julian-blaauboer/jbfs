@@ -108,6 +108,8 @@ int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc);
 void jbfs_evict_inode(struct inode *inode);
 
 uint64_t jbfs_new_block(struct inode *inode, int *err);
+void jbfs_truncate(struct inode *inode);
+
 struct inode *jbfs_new_inode(struct inode *dir, umode_t mode);
 int jbfs_delete_inode(struct inode *inode);
 

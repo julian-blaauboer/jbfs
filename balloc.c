@@ -66,6 +66,70 @@ static int jbfs_alloc_blocks(struct super_block *sb, uint64_t start, int n, int 
   return jbfs_alloc_blocks_local(sb, group, local, n, err);
 }
 
+static int jbfs_dealloc_blocks_local(struct super_block *sb, uint64_t group, uint64_t local, int n, int *err)
+{
+  struct jbfs_sb_info *sbi = JBFS_SB(sb);
+  struct buffer_head *bh;
+  uint64_t block, offset;
+  int i = 0;
+
+  *err = 0;
+
+  if (n <= 0) {
+    *err = -EINVAL;
+    return 0;
+  }
+  if (local >= sbi->s_group_data_blocks) {
+    *err = -EINVAL;
+    return 0;
+  }
+
+  block = sbi->s_offset_group + group * sbi->s_group_size + sbi->s_offset_refmap + (local >> sbi->s_log_block_size);
+  offset = local & (sb->s_blocksize - 1);
+
+  bh = sb_bread(sb, block);
+  if (!bh) {
+    *err = -EIO;
+    return 0;
+  }
+
+  while (i < n) {
+    if (((uint8_t*)bh->b_data)[offset])
+      ((uint8_t*)bh->b_data)[offset] -= 1;
+
+    i += 1;
+
+    if (++offset >= sb->s_blocksize) {
+      offset = 0;
+      block += 1;
+      mark_buffer_dirty(bh);
+      brelse(bh);
+
+      printk("writing to block %llu\n", block);
+      bh = sb_bread(sb, block);
+      if (!bh) {
+        *err = -EIO;
+        return i;
+      }
+    }
+  }
+
+  mark_buffer_dirty(bh);
+  brelse(bh);
+  return i;
+}
+
+static int jbfs_dealloc_blocks(struct super_block *sb, uint64_t start, int n, int *err)
+{
+  struct jbfs_sb_info *sbi = JBFS_SB(sb);
+  uint64_t group, local;
+
+  group = (start - sbi->s_offset_group) / sbi->s_group_size;
+  local = (start - sbi->s_offset_group) % sbi->s_group_size - sbi->s_offset_data;
+
+  return jbfs_dealloc_blocks_local(sb, group, local, n, err);
+}
+
 static uint64_t jbfs_find_free_in_group(struct super_block *sb, uint64_t group, int n, int *err)
 {
   struct jbfs_sb_info *sbi = JBFS_SB(sb);
@@ -182,4 +246,37 @@ out:
   // TODO: Update group descriptor
   mark_inode_dirty(inode);
   return jbfs_inode->i_extents[i][1];
+}
+
+// TODO: Update group descriptor
+// TODO: Use i_cont
+// TODO: Locking
+// TODO: Error handling?
+void jbfs_truncate(struct inode *inode)
+{
+  struct super_block *sb = inode->i_sb;
+  struct jbfs_sb_info *sbi = JBFS_SB(sb);
+  struct jbfs_inode_info *ji = JBFS_I(inode);
+  uint64_t blocks = (inode->i_size + sb->s_blocksize - 1) >> sbi->s_log_block_size;
+  uint64_t i;
+  int err;
+
+  for (i = 0; i < 12; ++i) {
+    uint64_t start = ji->i_extents[i][0];
+    uint64_t end = ji->i_extents[i][1];
+    uint64_t len = end - start + !!start;
+    if (blocks && blocks >= len) {
+      blocks -= len;
+    } else if (blocks > 0) {
+      blocks -= 1;
+      jbfs_dealloc_blocks(inode->i_sb, start + blocks, len - blocks, &err);
+      ji->i_extents[i][1] = start + blocks;
+      blocks = 0;
+    } else {
+      jbfs_dealloc_blocks(inode->i_sb, start, len, &err);
+      ji->i_extents[i][0] = ji->i_extents[i][1] = 0;
+    }
+  }
+
+  mark_inode_dirty(inode);
 }

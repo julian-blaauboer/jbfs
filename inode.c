@@ -73,7 +73,7 @@ static void jbfs_write_failed(struct address_space *mapping, loff_t to)
 
   if (to > inode->i_size) {
     truncate_pagecache(inode, inode->i_size);
-    // TODO: Truncate allocation
+    jbfs_truncate(inode);
   }
 }
 
@@ -255,11 +255,12 @@ void jbfs_evict_inode(struct inode *inode)
   truncate_inode_pages_final(&inode->i_data);
   if (!inode->i_nlink) {
     inode->i_size = 0;
-    // TODO: Truncate
+    jbfs_truncate(inode);
   }
   invalidate_inode_buffers(inode);
   clear_inode(inode);
-  jbfs_delete_inode(inode);
+  if (!inode->i_nlink)
+    jbfs_delete_inode(inode);
 }
 
 int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask, unsigned int flags)

@@ -15,7 +15,7 @@ static int jbfs_setattr(struct dentry *dentry, struct iattr *attr)
       return err;
 
     truncate_setsize(inode, attr->ia_size);
-    // TODO: Truncate
+    jbfs_truncate(inode);
   }
 
   setattr_copy(inode, attr);

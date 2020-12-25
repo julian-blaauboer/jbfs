@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
+// Copyright (C) 2020 Julian Blaauboer
+
 #ifndef JBFS_JBFS_H
 #define JBFS_JBFS_H
 

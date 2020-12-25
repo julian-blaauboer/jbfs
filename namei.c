@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0
+// Copyright (C) 1991, 1992 Linus Torvalds
+// Copyright (C) 1992, 1993, 1994, 1995 Remy Card
+// Copyright (C) 2020 Julian Blaauboer
+
 #include <linux/fs.h>
 #include "jbfs.h"
 

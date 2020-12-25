@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
+// Copyright (C) 1991, 1992 Linus Torvalds
+// Copyright (C) 2020 Julian Blaauboer
+
 #include <linux/kernel.h>
 #include <linux/buffer_head.h>
 #include <linux/vfs.h>

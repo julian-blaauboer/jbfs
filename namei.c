@@ -139,6 +139,22 @@ static int jbfs_unlink(struct inode *dir, struct dentry *dentry)
   
 }
 
+static int jbfs_rmdir(struct inode *dir, struct dentry *dentry)
+{
+  struct inode *inode = d_inode(dentry);
+  int err = -ENOTEMPTY;
+
+  if (jbfs_empty_dir(inode)) {
+    err = jbfs_unlink(dir, dentry);
+    if (!err) {
+      inode->i_size = 0;
+      inode_dec_link_count(inode);
+      inode_dec_link_count(dir);
+    }
+  }
+  return err;
+}
+
 const struct inode_operations jbfs_dir_inode_operations = {
   .create = jbfs_create,
   .link = jbfs_link,
@@ -146,5 +162,6 @@ const struct inode_operations jbfs_dir_inode_operations = {
   .mkdir = jbfs_mkdir,
   .mknod = jbfs_mknod,
   .symlink = jbfs_symlink,
+  .rmdir = jbfs_rmdir,
   .unlink = jbfs_unlink
 };

@@ -143,6 +143,51 @@ out_unlock:
   goto out_put;
 }
 
+int jbfs_empty_dir(struct inode *inode)
+{
+  struct page *page = NULL;
+  uint64_t i, npages = dir_pages(inode);
+
+  for (i = 0; i < npages; ++i) {
+    char *kaddr;
+    struct jbfs_dirent *de;
+
+    page = dir_get_page(inode, i);
+    if (IS_ERR(page)) {
+      printk(KERN_ERR "jbfs: bad page in inode %lu.\n", inode->i_ino);
+      continue;
+    }
+
+    kaddr = page_address(page);
+    de = (struct jbfs_dirent *)kaddr;
+    kaddr += last_byte(inode, i) - JBFS_DIRENT_SIZE(1);
+
+    while ((char*)de <= kaddr) {
+      if (de->d_size == 0) {
+        printk(KERN_ERR "jbfs: zero-length directory entry in inode %lu.\n", inode->i_ino);
+        goto not_empty;
+      }
+      if (de->d_ino) {
+        if (de->d_name[0] != '.')
+          goto not_empty;
+        if (de->d_len > 2)
+          goto not_empty;
+        if (de->d_len < 2) {
+          if (le64_to_cpu(de->d_ino) != inode->i_ino)
+            goto not_empty;
+        } else if (de->d_name[1] != '.')
+          goto not_empty;
+      }
+      de = (struct jbfs_dirent *)((char *)de + le16_to_cpu(de->d_size));
+    }
+    dir_put_page(page);
+  }
+  return 1;
+
+not_empty:
+  return 0;
+}
+
 int jbfs_make_empty(struct inode *inode, struct inode *parent)
 {
   struct page *page = grab_cache_page(inode->i_mapping, 0);

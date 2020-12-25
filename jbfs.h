@@ -35,7 +35,7 @@ struct jbfs_super_block {
 struct jbfs_sb_info {
   struct jbfs_super_block *s_js;
   struct buffer_head *s_sbh;
-  spinlock_t s_group_lock[JBFS_GROUP_N_LOCKS];
+  struct mutex s_group_lock[JBFS_GROUP_N_LOCKS];
   uint32_t s_log_block_size;
   uint64_t s_flags;
   uint64_t s_num_blocks;
@@ -50,8 +50,8 @@ struct jbfs_sb_info {
   uint32_t s_offset_data;
 };
 
-#define JBFS_GROUP_LOCK(sbi, group) spin_lock(&sbi->s_group_lock[group % JBFS_GROUP_N_LOCKS])
-#define JBFS_GROUP_UNLOCK(sbi, group) spin_unlock(&sbi->s_group_lock[group % JBFS_GROUP_N_LOCKS])
+#define JBFS_GROUP_LOCK(sbi, group) mutex_lock(&sbi->s_group_lock[group % JBFS_GROUP_N_LOCKS])
+#define JBFS_GROUP_UNLOCK(sbi, group) mutex_unlock(&sbi->s_group_lock[group % JBFS_GROUP_N_LOCKS])
 
 struct jbfs_group_descriptor {
   __le32 g_magic;

@@ -118,7 +118,7 @@ reread_sb:
   sbi->s_offset_data = le32_to_cpu(js->s_offset_data);
 
   for (i = 0; i < JBFS_GROUP_N_LOCKS; ++i)
-    spin_lock_init(&sbi->s_group_lock[i]);
+    mutex_init(&sbi->s_group_lock[i]);
 
   sb->s_op = &jbfs_sops;
   sb->s_time_min = 0;

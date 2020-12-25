@@ -47,6 +47,27 @@ static int commit_chunk(struct page *page, loff_t pos, unsigned len)
   return err;
 }
 
+int jbfs_set_link(struct inode *dir, struct jbfs_dirent *de, struct page *page, struct inode *inode)
+{
+  loff_t pos = page_offset(page) + (char *)de - (char *)page_address(page);
+  uint16_t size = le16_to_cpu(de->d_size);
+  int err;
+
+  lock_page(page);
+  err = __block_write_begin(page, pos, size, jbfs_get_block);
+  if (err)
+    return err;
+
+  de->d_ino = cpu_to_le64(inode->i_ino);
+
+  err = commit_chunk(page, pos, size);
+  dir_put_page(page);
+  dir->i_mtime = dir->i_ctime = current_time(dir);
+  mark_inode_dirty(dir);
+  
+  return err;
+}
+
 int jbfs_add_link(struct dentry *dentry, struct inode *inode)
 {
   const char *name = dentry->d_name.name;
@@ -315,6 +336,19 @@ struct jbfs_dirent *jbfs_find_entry(struct dentry *dentry, struct page **res_pag
   }
 
   return ERR_PTR(-ENOENT);
+}
+
+struct jbfs_dirent *jbfs_dotdot(struct inode *dir, struct page **p)
+{
+  struct jbfs_dirent *de = NULL;
+
+  struct page *page = dir_get_page(dir, 0);
+  if (!IS_ERR(page)) {
+    de = (struct jbfs_dirent *)((char *)de + le16_to_cpu(de->d_size));
+    *p = page;
+  }
+
+  return de;
 }
 
 ino_t jbfs_inode_by_name(struct dentry *dentry)

@@ -115,9 +115,11 @@ void jbfs_truncate(struct inode *inode);
 struct inode *jbfs_new_inode(struct inode *dir, umode_t mode);
 int jbfs_delete_inode(struct inode *inode);
 
+int jbfs_set_link(struct inode *dir, struct jbfs_dirent *de, struct page *page, struct inode *inode);
 int jbfs_add_link(struct dentry *dentry, struct inode *inode);
 struct jbfs_dirent *jbfs_find_entry(struct dentry *dentry, struct page **res_page);
 int jbfs_delete_entry(struct jbfs_dirent *dir, struct page *page);
+struct jbfs_dirent *jbfs_dotdot(struct inode *dir, struct page **p);
 int jbfs_empty_dir(struct inode *inode);
 int jbfs_make_empty(struct inode *inode, struct inode *parent);
 ino_t jbfs_inode_by_name(struct dentry *dentry);

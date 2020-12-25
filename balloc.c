@@ -22,8 +22,11 @@ static int jbfs_alloc_blocks_local(struct super_block *sb, uint64_t group, uint6
   block = sbi->s_offset_group + group * sbi->s_group_size + sbi->s_offset_refmap + (local >> sbi->s_log_block_size);
   offset = local & (sb->s_blocksize - 1);
 
+  JBFS_GROUP_LOCK(sbi, group);
+
   bh = sb_bread(sb, block);
   if (!bh) {
+    JBFS_GROUP_UNLOCK(sbi, group);
     *err = -EIO;
     return 0;
   }
@@ -43,6 +46,7 @@ static int jbfs_alloc_blocks_local(struct super_block *sb, uint64_t group, uint6
 
       bh = sb_bread(sb, block);
       if (!bh) {
+        JBFS_GROUP_UNLOCK(sbi, group);
         *err = -EIO;
         return i;
       }
@@ -52,6 +56,7 @@ static int jbfs_alloc_blocks_local(struct super_block *sb, uint64_t group, uint6
 out:
   mark_buffer_dirty(bh);
   brelse(bh);
+  JBFS_GROUP_UNLOCK(sbi, group);
   return i;
 }
 
@@ -87,8 +92,11 @@ static int jbfs_dealloc_blocks_local(struct super_block *sb, uint64_t group, uin
   block = sbi->s_offset_group + group * sbi->s_group_size + sbi->s_offset_refmap + (local >> sbi->s_log_block_size);
   offset = local & (sb->s_blocksize - 1);
 
+  JBFS_GROUP_LOCK(sbi, group);
+
   bh = sb_bread(sb, block);
   if (!bh) {
+    JBFS_GROUP_UNLOCK(sbi, group);
     *err = -EIO;
     return 0;
   }
@@ -108,12 +116,14 @@ static int jbfs_dealloc_blocks_local(struct super_block *sb, uint64_t group, uin
       printk("writing to block %llu\n", block);
       bh = sb_bread(sb, block);
       if (!bh) {
+        JBFS_GROUP_UNLOCK(sbi, group);
         *err = -EIO;
         return i;
       }
     }
   }
 
+  JBFS_GROUP_UNLOCK(sbi, group);
   mark_buffer_dirty(bh);
   brelse(bh);
   return i;

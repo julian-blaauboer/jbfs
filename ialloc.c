@@ -16,8 +16,9 @@ struct inode *jbfs_new_inode(struct inode *dir, umode_t mode)
 
   start = dir->i_ino >> sbi->s_local_inode_bits;
   group = start;
-  
+
   do {
+    JBFS_GROUP_LOCK(sbi, group); 
     block = sbi->s_offset_group + group * sbi->s_group_size + 1;
 
     for (local = 0; local < sbi->s_group_inodes; local += sb->s_blocksize * 8) {
@@ -30,6 +31,7 @@ struct inode *jbfs_new_inode(struct inode *dir, umode_t mode)
         set_bit(index, (unsigned long*)bh->b_data);
         mark_buffer_dirty(bh);
         brelse(bh);
+        JBFS_GROUP_UNLOCK(sbi, group); 
         local += index;
         goto found;
       }
@@ -37,6 +39,7 @@ struct inode *jbfs_new_inode(struct inode *dir, umode_t mode)
       brelse(bh);
     }
 
+    JBFS_GROUP_UNLOCK(sbi, group); 
     if (++group >= sbi->s_num_groups)
       group = 0;
   } while (group != start);
@@ -79,6 +82,7 @@ int jbfs_delete_inode(struct inode *inode)
   uint64_t block = sbi->s_offset_group + group * sbi->s_group_size + 1 + (local >> (sbi->s_log_block_size + 3));
   local &= sb->s_blocksize * 8 - 1;
 
+  JBFS_GROUP_LOCK(sbi, group); 
   bh = sb_bread(sb, block);
   if (!bh)
     return -EIO;
@@ -86,5 +90,6 @@ int jbfs_delete_inode(struct inode *inode)
   clear_bit(local, (unsigned long*)bh->b_data);
   mark_buffer_dirty(bh);
   brelse(bh);
+  JBFS_GROUP_UNLOCK(sbi, group); 
   return 0;
 }

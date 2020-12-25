@@ -189,6 +189,7 @@ static int jbfs_rename(struct inode *old_dir, struct dentry *old_dentry, struct 
     if (dir_de && !jbfs_empty_dir(new_inode))
       goto out_dir;
 
+    err = -ENOENT;
     new_de = jbfs_find_entry(new_dentry, &new_page);
     if (IS_ERR(new_de)) {
       err = PTR_ERR(new_de);
@@ -217,6 +218,7 @@ static int jbfs_rename(struct inode *old_dir, struct dentry *old_dentry, struct 
     jbfs_set_link(old_inode, dir_de, dir_page, new_dir);
     inode_dec_link_count(old_dir);
   }
+  return 0;
 
 out_dir:
   if (dir_de) {

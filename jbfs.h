@@ -85,6 +85,8 @@ struct jbfs_dirent {
   char d_name[];
 };
 
+#define JBFS_DIRENT_SIZE(n) (11+n)
+
 static inline struct jbfs_inode_info *JBFS_I(struct inode *inode)
 {
   return container_of(inode, struct jbfs_inode_info, vfs_inode);

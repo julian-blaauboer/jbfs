@@ -51,7 +51,7 @@ int jbfs_add_link(struct dentry *dentry, struct inode *inode)
 {
   const char *name = dentry->d_name.name;
   int len_needed = dentry->d_name.len;
-  uint16_t size_needed = (sizeof(struct jbfs_dirent) + len_needed + 7) & ~7;
+  uint16_t size_needed = (JBFS_DIRENT_SIZE(len_needed) + 7) & ~7;
   uint16_t size, min_size;
   uint8_t len;
   struct inode *dir = d_inode(dentry->d_parent);
@@ -101,7 +101,7 @@ int jbfs_add_link(struct dentry *dentry, struct inode *inode)
       if (!de->d_ino && size >= size_needed) {
         goto got_it;
       }
-      min_size = (sizeof(struct jbfs_dirent) + len + 7) & ~7;
+      min_size = (JBFS_DIRENT_SIZE(len) + 7) & ~7;
       if (size >= size_needed + min_size) {
         goto got_it;
       }
@@ -251,7 +251,7 @@ struct jbfs_dirent *jbfs_find_entry(struct dentry *dentry, struct page **res_pag
 
     kaddr = page_address(page);
     de = (struct jbfs_dirent *)kaddr;
-    limit = kaddr + last_byte(dir, n) - sizeof(struct jbfs_dirent) - 1;
+    limit = kaddr + last_byte(dir, n) - JBFS_DIRENT_SIZE(1);
 
     while ((char *)de <= limit) {
       uint16_t size = le16_to_cpu(de->d_size);
@@ -295,7 +295,7 @@ static int jbfs_readdir(struct file *file, struct dir_context *ctx)
   uint32_t offset = pos & ~PAGE_MASK;
   uint64_t n = pos >> PAGE_SHIFT;
 
-  if (pos > inode->i_size - sizeof(struct jbfs_dirent) - 1)
+  if (pos > inode->i_size - JBFS_DIRENT_SIZE(1))
     return 0;
 
   for (; n < npages; n++, offset = 0) {
@@ -311,7 +311,7 @@ static int jbfs_readdir(struct file *file, struct dir_context *ctx)
 
     kaddr = page_address(page);
     de = (struct jbfs_dirent *)(kaddr + offset);
-    limit = kaddr + last_byte(inode, n) - sizeof(struct jbfs_dirent) - 1;
+    limit = kaddr + last_byte(inode, n) - JBFS_DIRENT_SIZE(1);
 
     while((char *)de <= limit) {
       uint16_t size = le16_to_cpu(de->d_size);

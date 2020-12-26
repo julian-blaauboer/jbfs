@@ -77,7 +77,7 @@ int jbfs_add_link(struct dentry *dentry, struct inode *inode)
 {
   const char *name = dentry->d_name.name;
   int len_needed = dentry->d_name.len;
-  uint16_t size_needed = (JBFS_DIRENT_SIZE(len_needed) + 7) & ~7;
+  uint16_t size_needed = JBFS_DIRENT_SIZE(len_needed);
   uint16_t size, min_size;
   uint8_t len;
   struct inode *dir = d_inode(dentry->d_parent);
@@ -88,7 +88,7 @@ int jbfs_add_link(struct dentry *dentry, struct inode *inode)
   loff_t pos;
   int err = 0;
 
-  for (n = 0; n < npages; ++n) {
+  for (n = 0; n <= npages; ++n) {
     char *kaddr, *limit, *end;
 
     page = dir_get_page(dir, n);
@@ -127,7 +127,7 @@ int jbfs_add_link(struct dentry *dentry, struct inode *inode)
       if (!de->d_ino && size >= size_needed) {
         goto got_it;
       }
-      min_size = (JBFS_DIRENT_SIZE(len) + 7) & ~7;
+      min_size = JBFS_DIRENT_SIZE(len);
       if (size >= size_needed + min_size) {
         goto got_it;
       }

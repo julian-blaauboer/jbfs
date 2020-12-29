@@ -20,6 +20,7 @@ bump the version to 0.1.
 - Update and check group descriptors during inode allocation/deallocation.
 - Add inode and block counts to super block (for `statfs`).
 - Add `statfs`.
+- Add UUID and label.
 - Add support for the `i_cont` field to allow for more than 12 extents per inode, this requires reworking
   a significant part of the block (de)allocation algorithms.
 ### Long-term

@@ -34,12 +34,18 @@ int jbfs_get_block(struct inode *inode, sector_t iblock,
 		iblock -= len;
 	}
 
+	/*
+	 * Simplest case: block found, no allocation needed.
+	 */
 	if (ret == 0)
 		goto out;
 
 	if (!create)
 		return ret;
 
+	/*
+	 * Allocate new blocks one block at a time.
+	 */
 	while (iblock--) {
 		jbfs_new_block(inode, &ret);
 		if (ret)

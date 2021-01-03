@@ -14,11 +14,7 @@ static int jbfs_alloc_blocks_local(struct super_block *sb, uint64_t group,
 
 	*err = 0;
 
-	if (n <= 0) {
-		*err = -EINVAL;
-		return 0;
-	}
-	if (local >= sbi->s_group_data_blocks) {
+	if (n <= 0 || local >= sbi->s_group_data_blocks) {
 		*err = -EINVAL;
 		return 0;
 	}
@@ -92,11 +88,7 @@ static int jbfs_dealloc_blocks_local(struct super_block *sb, uint64_t group,
 
 	*err = 0;
 
-	if (n <= 0) {
-		*err = -EINVAL;
-		return 0;
-	}
-	if (local >= sbi->s_group_data_blocks) {
+	if (n <= 0 || local >= sbi->s_group_data_blocks) {
 		*err = -EINVAL;
 		return 0;
 	}
@@ -143,13 +135,19 @@ static int jbfs_dealloc_blocks(struct super_block *sb, uint64_t start, int n,
 {
 	struct jbfs_sb_info *sbi = JBFS_SB(sb);
 	uint64_t group, local;
+	int ret;
 
 	group = (start - sbi->s_offset_group) / sbi->s_group_size;
 	local =
 	    (start - sbi->s_offset_group) % sbi->s_group_size -
 	    sbi->s_offset_data;
 
-	return jbfs_dealloc_blocks_local(sb, group, local, n, err);
+	JBFS_GROUP_LOCK(sbi, group);
+
+	ret = jbfs_dealloc_blocks_local(sb, group, local, n, err);
+
+	JBFS_GROUP_UNLOCK(sbi, group);
+	return ret;
 }
 
 static uint64_t jbfs_find_free_in_group(struct super_block *sb, uint64_t group,
@@ -243,6 +241,9 @@ uint64_t jbfs_new_block(struct inode *inode, int *err)
 			break;
 	}
 
+	/*
+	 * First, try extending previous extent.
+	 */
 	if (i > 0) {
 		n = jbfs_alloc_blocks(inode->i_sb,
 				      jbfs_inode->i_extents[i - 1][1] + 1, 1,
@@ -262,6 +263,9 @@ uint64_t jbfs_new_block(struct inode *inode, int *err)
 		return 0;
 	}
 
+	/*
+	 * Otherwise, start a new extent.
+	 */
 	start = jbfs_find_free(inode, 1, err);
 	if (!start)
 		return 0;
@@ -282,7 +286,6 @@ uint64_t jbfs_new_block(struct inode *inode, int *err)
 
 // TODO: Update group descriptor
 // TODO: Use i_cont
-// TODO: Locking
 // TODO: Error handling?
 void jbfs_truncate(struct inode *inode)
 {

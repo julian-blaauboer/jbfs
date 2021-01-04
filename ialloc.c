@@ -26,13 +26,19 @@ struct inode *jbfs_new_inode(struct inode *dir, umode_t mode)
 
 		for (local = 0; local < sbi->s_group_inodes;
 		     local += sb->s_blocksize * 8) {
-			bh = sb_bread(sb, block);
+			bh = sb_bread(sb, block++);
 			if (!bh)
 				continue;
 
 			index =
 			    find_first_zero_bit((unsigned long *)bh->b_data,
 						sb->s_blocksize * 8);
+
+			if (local + index >= sbi->s_group_inodes) {
+				brelse(bh);
+				break;
+			}
+
 			if (index < sb->s_blocksize * 8) {
 				set_bit(index, (unsigned long *)bh->b_data);
 				mark_buffer_dirty(bh);

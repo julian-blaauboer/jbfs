@@ -116,7 +116,6 @@ static int jbfs_dealloc_blocks_local(struct super_block *sb, uint64_t group,
 			mark_buffer_dirty(bh);
 			brelse(bh);
 
-			printk("writing to block %llu\n", block);
 			bh = sb_bread(sb, block);
 			if (!bh) {
 				*err = -EIO;
@@ -249,8 +248,7 @@ uint64_t jbfs_new_block(struct inode *inode, int *err)
 				      jbfs_inode->i_extents[i - 1][1] + 1, 1,
 				      err, 1);
 		jbfs_inode->i_extents[i - 1][1] += n;
-		if (*err)
-			goto out;
+
 		if (n) {
 			*err = 0;
 			i -= 1;

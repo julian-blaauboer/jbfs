@@ -14,11 +14,13 @@ int jbfs_get_block(struct inode *inode, sector_t iblock,
 		   struct buffer_head *bh_result, int create)
 {
 	struct jbfs_inode_info *jbfs_inode;
+	struct jbfs_sb_info *sbi;
 	sector_t block;
 	int ret = -EIO;
 	int i;
 
 	jbfs_inode = JBFS_I(inode);
+	sbi = JBFS_SB(inode->i_sb);
 
 	for (i = 0; i < 12; ++i) {
 		uint64_t start = jbfs_inode->i_extents[i][0];
@@ -58,6 +60,14 @@ int jbfs_get_block(struct inode *inode, sector_t iblock,
 
 	set_buffer_new(bh_result);
  out:
+	if (block >= sbi->s_num_blocks) {
+		printk(KERN_WARNING
+		       "jbfs: block %llu in inode %lu outside of filesystem\n",
+			block, inode->i_ino);
+		ret = -EIO;
+		goto out_err;
+	}
+
 	map_bh(bh_result, inode->i_sb, block);
 	return 0;
 

@@ -72,8 +72,14 @@ static int jbfs_alloc_blocks(struct super_block *sb, uint64_t start, int n,
 	if (lock_group)
 		JBFS_GROUP_LOCK(sbi, group);
 
+	if (start >= sbi->s_num_blocks) {
+		ret = -ENOSPC;
+		goto out;
+	}
+
 	ret = jbfs_alloc_blocks_local(sb, group, local, n, err);
 
+out:
 	JBFS_GROUP_UNLOCK(sbi, group);
 	return ret;
 }

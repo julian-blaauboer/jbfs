@@ -256,7 +256,7 @@ uint64_t jbfs_new_block(struct inode *inode, int *err)
 		}
 	}
 
-	if (jbfs_inode->i_extents[i][0]) {
+	if (i > 11) {
 		*err = -ENOSPC;
 		return 0;
 	}
@@ -295,6 +295,8 @@ void jbfs_truncate(struct inode *inode)
 	uint64_t i;
 	int err;
 
+	block_truncate_page(inode->i_mapping, inode->i_size, jbfs_get_block);
+
 	for (i = 0; i < 12; ++i) {
 		uint64_t start = ji->i_extents[i][0];
 		uint64_t end = ji->i_extents[i][1];
@@ -313,5 +315,6 @@ void jbfs_truncate(struct inode *inode)
 		}
 	}
 
+	inode->i_mtime = inode->i_ctime = current_time(inode);
 	mark_inode_dirty(inode);
 }

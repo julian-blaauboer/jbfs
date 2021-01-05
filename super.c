@@ -204,6 +204,7 @@ static void __exit jbfs_exit(void)
 {
 	int ret;
 
+	rcu_barrier();
 	kmem_cache_destroy(jbfs_inode_cache);
 
 	ret = unregister_filesystem(&jbfs_fs_type);

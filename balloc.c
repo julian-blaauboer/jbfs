@@ -263,7 +263,7 @@ uint64_t jbfs_new_block(struct inode *inode, int *err)
 	}
 
 	if (i > 11) {
-		*err = -ENOSPC;
+		*err = -EFBIG;
 		return 0;
 	}
 

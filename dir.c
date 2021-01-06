@@ -159,7 +159,7 @@ int jbfs_add_link(struct dentry *dentry, struct inode *inode)
 		de = new_de;
 	}
 
-	de->d_ino = cpu_to_le32(inode->i_ino);
+	de->d_ino = cpu_to_le64(inode->i_ino);
 	de->d_len = len_needed;
 	memcpy(de->d_name, name, len_needed);
 
@@ -296,7 +296,7 @@ int jbfs_delete_entry(struct jbfs_dirent *dir, struct page *page)
 	if (prev)
 		start = (char *)prev - kaddr;
 
-	pos = (loff_t) (kaddr + start);
+	pos = page_offset(page) + start;
 	lock_page(page);
 	err = __block_write_begin(page, pos, end - start, jbfs_get_block);
 	if (err)

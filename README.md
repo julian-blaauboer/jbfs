@@ -16,6 +16,7 @@ bump the version to 0.1.
 
 ## Planned features
 ### Short-term
+- Add support for `O_DIRECT`.
 - Better error logging than `printk`.
 - Update and check group descriptors during inode allocation/deallocation.
 - Add inode and block counts to super block (for `statfs`).
@@ -26,6 +27,7 @@ bump the version to 0.1.
 ### Long-term
 - Add support for reflinks, this mostly requires implementing CoW.
 - Add support for journaling (at least metadata).
+- Non-linear directory format (maybe?).
 ### Longer-term
 - Add support for disk quota.
 - Add support for xattr.

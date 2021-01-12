@@ -1,7 +1,17 @@
+ifneq ($(KERNELRELEASE),)
+
 obj-m = jbfs.o
-jbfs-objs = super.o inode.o dir.o file.o namei.o balloc.o ialloc.o
+jbfs-y = super.o inode.o dir.o file.o namei.o balloc.o ialloc.o
+
+else
+
+KDIR ?= /lib/modules/`uname -r`/build
 
 all:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+	make -C $(KDIR) M=$$PWD modules
 clean:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	make -C $(KDIR) M=$$PWD clean
+install:
+	make -C $(KDIR) M=$$PWD modules_install
+
+endif

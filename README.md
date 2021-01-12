@@ -7,12 +7,9 @@ this is my first attempt at writing Linux kernel code. That is not to say that I
 it somewhat usable, but do not expect this filesystem to ever get better than any filesystem already
 in use. It's main purpose is to be educational to me, and perhaps to others as well. 
 
-## Release 0.1-alpha
-The filesystem is currently in a working state (i.e., files can be added, removed, moved, linked etc.).
-However, bugs are to be expected, documentation is absent and as a whole, the filesystem is extremely
-fragile. Before adding any more features, I will dedicate my time to testing the code, adding _some_
-documentation and formatting the code to be more in style with the Linux kernel. After that, I will
-bump the version to 0.1.
+## Release 0.1.0-rc1
+While documentation is still lacking, the most critical bugs are fixed. If I can't find any more bugs, I
+will bump to 0.1.0 and start adding new features.
 
 ## Planned features
 ### Short-term

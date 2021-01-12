@@ -220,8 +220,9 @@ static void __exit jbfs_exit(void)
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Julian Blaauboer");
-MODULE_DESCRIPTION("JBFS filesystem");
-MODULE_VERSION("0.1-alpha");
+MODULE_DESCRIPTION("The JBFS filesystem");
+MODULE_VERSION("0.1.0-rc1");
+MODULE_ALIAS_FS("jbfs");
 
 module_init(jbfs_init);
 module_exit(jbfs_exit);

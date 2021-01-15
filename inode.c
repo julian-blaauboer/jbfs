@@ -139,11 +139,12 @@ static struct jbfs_inode *jbfs_raw_inode(struct super_block *sb,
 	struct jbfs_sb_info *sbi = JBFS_SB(sb);
 	uint64_t group, local, pos;
 
+	ino -= 1;
 	group = ino >> sbi->s_local_inode_bits;
 	local = ino & ((1ull << sbi->s_local_inode_bits) - 1);
 	pos = (sbi->s_offset_group + sbi->s_offset_inodes +
 	       group * sbi->s_group_size) * sb->s_blocksize +
-	    (local - 1) * JBFS_INODE_SIZE;
+	       local * JBFS_INODE_SIZE;
 
 	*bh = sb_bread(sb, pos / sb->s_blocksize);
 	if (!*bh) {

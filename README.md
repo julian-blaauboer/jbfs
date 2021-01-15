@@ -7,9 +7,10 @@ this is my first attempt at writing Linux kernel code. That is not to say that I
 it somewhat usable, but do not expect this filesystem to ever get better than any filesystem already
 in use. It's main purpose is to be educational to me, and perhaps to others as well. 
 
-## Release 0.1.0-rc1
+## Release 0.1.0-rc2
 While documentation is still lacking, the most critical bugs are fixed. If I can't find any more bugs, I
-will bump to 0.1.0 and start adding new features.
+will bump to 0.1.0 and start adding new features. Since rc1, the makefile has been improved and a relatively
+small bug has been fixed.
 
 ## Planned features
 ### Short-term

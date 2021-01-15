@@ -8,10 +8,10 @@ else
 KDIR ?= /lib/modules/`uname -r`/build
 
 all:
-	make -C $(KDIR) M=$$PWD modules
+	make -C $(KDIR) M=`pwd` modules
 clean:
-	make -C $(KDIR) M=$$PWD clean
+	make -C $(KDIR) M=`pwd` clean
 install:
-	make -C $(KDIR) M=$$PWD modules_install
+	make -C $(KDIR) M=`pwd` modules_install
 
 endif

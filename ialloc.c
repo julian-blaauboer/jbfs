@@ -89,6 +89,7 @@ int jbfs_delete_inode(struct inode *inode)
 	struct super_block *sb = inode->i_sb;
 	struct jbfs_sb_info *sbi = JBFS_SB(sb);
 	struct buffer_head *bh;
+	int ret = 0;
 	uint64_t group = inode->i_ino >> sbi->s_local_inode_bits;
 	uint64_t local =
 	    (inode->i_ino & ((1ull << sbi->s_local_inode_bits) - 1)) - 1;
@@ -99,12 +100,15 @@ int jbfs_delete_inode(struct inode *inode)
 
 	JBFS_GROUP_LOCK(sbi, group);
 	bh = sb_bread(sb, block);
-	if (!bh)
-		return -EIO;
+	if (!bh) {
+		ret = -EIO;
+		goto out;
+	}
 
 	clear_bit(local, (unsigned long *)bh->b_data);
 	mark_buffer_dirty(bh);
 	brelse(bh);
+out:
 	JBFS_GROUP_UNLOCK(sbi, group);
-	return 0;
+	return ret;
 }

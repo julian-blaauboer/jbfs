@@ -7,19 +7,97 @@
 #include <linux/iversion.h>
 #include "jbfs.h"
 
-static struct page *dir_get_page(struct inode *dir, unsigned long n)
+static int dir_check_page(struct page *page)
 {
-	struct address_space *mapping = dir->i_mapping;
-	struct page *page = read_mapping_page(mapping, n, NULL);
-	if (!IS_ERR(page))
-		kmap(page);
-	return page;
+	struct inode *dir = page->mapping->host;
+	struct super_block *sb = dir->i_sb;
+	char *msg = "unknown error";
+	unsigned end = PAGE_SIZE;
+	unsigned i = 0;
+
+	char *kaddr, *limit;
+	struct jbfs_dirent *de;
+
+	if ((dir->i_size >> PAGE_SHIFT) == page->index) {
+		end = dir->i_size & ~PAGE_MASK;
+		if (end & (sb->s_blocksize -1))
+			goto bad_size;
+		if (!end)
+			goto out;
+	}
+
+	kaddr = page_address(page);
+	limit = kaddr + end - JBFS_DIRENT_SIZE(1);
+	de = (struct jbfs_dirent *)kaddr;
+	while ((char *)de <= limit) {
+		unsigned size = le16_to_cpu(de->d_size);
+		if (unlikely(size < JBFS_DIRENT_SIZE(1)))
+			goto tiny;
+		if (unlikely(size & 7))
+			goto unaligned;
+		if (unlikely(size < JBFS_DIRENT_SIZE(de->d_len)))
+			goto too_small;
+		if (unlikely(((i + size - 1) ^ i) & ~(sb->s_blocksize-1)))
+			goto span;
+
+		de = (struct jbfs_dirent *)((char *)de + size);
+		i += size;
+	}
+	if ((char *)de != limit)
+		goto out_of_bounds;
+
+out:
+	SetPageChecked(page);
+	return 1;
+
+bad_size:
+	msg = "size not multiple of chunk size";
+	goto out_err;
+tiny:
+	msg = "entry too tiny";
+	goto out_err;
+unaligned:
+	msg = "misaligned entry";
+	goto out_err;
+too_small:
+	msg = "entry too small for name";
+	goto out_err;
+span:
+	msg = "entry spans multiple chunks";
+	goto out_err;
+out_of_bounds:
+	msg = "entry exceeds page";
+	goto out_err;
+
+out_err:
+	printk(KERN_ERR "jbfs: corrupted directory: %s\n", msg);
+	SetPageError(page);
+	return 0;
 }
 
 static inline void dir_put_page(struct page *page)
 {
 	kunmap(page);
 	put_page(page);
+}
+
+static struct page *dir_get_page(struct inode *dir, unsigned long n)
+{
+	struct address_space *mapping = dir->i_mapping;
+	struct page *page = read_mapping_page(mapping, n, NULL);
+	if (!IS_ERR(page)) {
+		kmap(page);
+		if (unlikely(!PageChecked(page))) {
+			if (PageError(page) || !dir_check_page(page))
+				goto out_err;
+		}
+	}
+	return page;
+
+out_err:
+	dir_put_page(page);
+	return ERR_PTR(-EIO);
+
 }
 
 static unsigned last_byte(struct inode *inode, unsigned long page_nr)

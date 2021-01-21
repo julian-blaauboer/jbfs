@@ -226,6 +226,9 @@ static uint64_t jbfs_find_free(struct inode *inode, int n, int *err)
 
 		JBFS_GROUP_UNLOCK(sbi, group);
 
+		if (*err == -EIO)
+			break;
+
 		if (++group >= sbi->s_num_groups)
 			group = 0;
 	} while (group != start);

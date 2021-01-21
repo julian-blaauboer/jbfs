@@ -43,7 +43,7 @@ static int dir_check_page(struct page *page)
 		de = (struct jbfs_dirent *)((char *)de + size);
 		i += size;
 	}
-	if ((char *)de != limit)
+	if (i != sb->s_blocksize)
 		goto out_of_bounds;
 
 out:

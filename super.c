@@ -48,6 +48,36 @@ static const struct super_operations jbfs_sops = {
 	.put_super = jbfs_put_super,
 };
 
+static int jbfs_sanity_check(struct jbfs_sb_info *sbi)
+{
+	const char *msg = "unknown error";
+	if (sbi->s_offset_inodes < 2) {
+		msg = "bitmap begins after inodes";
+		goto fail;
+	}
+	if (sbi->s_offset_inodes >= sbi->s_offset_refmap) {
+		msg = "inodes begin after refmap";
+		goto fail;
+	}
+	if (sbi->s_offset_refmap >= sbi->s_offset_data) {
+		msg = "refmap begins after data";
+		goto fail;
+	}
+	if (sbi->s_offset_refmap >= sbi->s_offset_data) {
+		msg = "data begins after end of group";
+		goto fail;
+	}
+	if (sbi->s_offset_data + sbi->s_group_data_blocks > sbi->s_group_size) {
+		msg = "data blocks don't fit within a group";
+		goto fail;
+	}
+	return 1;
+ fail:
+	printk(KERN_ERR
+	       "jbfs: inconsistent superblock (%s), refusing to mount\n", msg);
+	return 0;
+}
+
 static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
 {
 	struct buffer_head *bh;
@@ -119,6 +149,9 @@ static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
 	sbi->s_offset_inodes = le32_to_cpu(js->s_offset_inodes);
 	sbi->s_offset_refmap = le32_to_cpu(js->s_offset_refmap);
 	sbi->s_offset_data = le32_to_cpu(js->s_offset_data);
+
+	if (!jbfs_sanity_check(sbi))
+		goto failed_mount;
 
 	for (i = 0; i < JBFS_GROUP_N_LOCKS; ++i)
 		mutex_init(&sbi->s_group_lock[i]);

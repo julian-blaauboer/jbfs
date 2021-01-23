@@ -1,5 +1,5 @@
 # JBFS
-JB File System _(working title)_ for Linux.
+JB FileSystem _(working title)_ for Linux.
 
 ### Disclaimer
 This filesystem is a personal project, I have no intent for it to compete with actual serious filesystems,
@@ -7,9 +7,9 @@ this is my first attempt at writing Linux kernel code. That is not to say that I
 it somewhat usable, but do not expect this filesystem to ever get better than any filesystem already
 in use. It's main purpose is to be educational to me, and perhaps to others as well. 
 
-## Release 0.1.0-rc3
-Under normal conditions, not much has changed since rc2; however, mounting corrupted filesystems should no
-longer cause deadlocks or otherwise crash the system.
+## Release 0.1.0
+Filesystem seems stable enough to allow myself to work on new features. Hopefully, the next release will
+be a lot closer to 'usable' (but probably not 'useful').
 
 ## Planned features
 ### Short-term

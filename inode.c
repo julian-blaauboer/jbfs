@@ -8,6 +8,7 @@
 #include <linux/highuid.h>
 #include <linux/fs.h>
 #include <linux/writeback.h>
+#include <linux/uio.h>
 #include "jbfs.h"
 
 int jbfs_get_block(struct inode *inode, sector_t iblock,
@@ -119,12 +120,26 @@ static sector_t jbfs_bmap(struct address_space *mapping, sector_t block)
 	return generic_block_bmap(mapping, block, jbfs_get_block);
 }
 
+static ssize_t jbfs_direct_IO(struct kiocb *iocb, struct iov_iter *iter)
+{
+	struct address_space *mapping = iocb->ki_filp->f_mapping;
+	struct inode *inode = mapping->host;
+	loff_t to = iocb->ki_pos + iov_iter_count(iter);
+	ssize_t ret;
+
+	ret = blockdev_direct_IO(iocb, inode, iter, jbfs_get_block);
+	if (ret < 0 && iov_iter_rw(iter) == WRITE)
+		jbfs_write_failed(mapping, to);
+	return ret;
+}
+
 static const struct address_space_operations jbfs_aops = {
 	.readpage = jbfs_readpage,
 	.writepage = jbfs_writepage,
 	.write_begin = jbfs_write_begin,
 	.write_end = generic_write_end,
-	.bmap = jbfs_bmap
+	.bmap = jbfs_bmap,
+	.direct_IO = jbfs_direct_IO
 };
 
 static const struct inode_operations jbfs_symlink_inode_operations = {

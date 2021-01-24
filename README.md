@@ -13,7 +13,6 @@ be a lot closer to 'usable' (but probably not 'useful').
 
 ## Planned features
 ### Short-term
-- Add support for `O_DIRECT`.
 - Better error logging than `printk`.
 - Update and check group descriptors during inode allocation/deallocation.
 - Add inode and block counts to super block (for `statfs`).

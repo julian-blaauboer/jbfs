@@ -29,6 +29,8 @@ struct jbfs_super_block {
 	__le32 s_offset_inodes;
 	__le32 s_offset_refmap;
 	__le32 s_offset_data;
+	__u8   s_label[48];
+	__u8   s_uuid[16];
 	__le32 s_checksum;
 };
 

@@ -150,6 +150,8 @@ static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
 	sbi->s_offset_refmap = le32_to_cpu(js->s_offset_refmap);
 	sbi->s_offset_data = le32_to_cpu(js->s_offset_data);
 
+	memcpy(&sb->s_uuid, js->s_uuid, sizeof(js->s_uuid));
+
 	if (!jbfs_sanity_check(sbi))
 		goto failed_mount;
 
@@ -254,7 +256,7 @@ static void __exit jbfs_exit(void)
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Julian Blaauboer");
 MODULE_DESCRIPTION("The JBFS filesystem");
-MODULE_VERSION("0.1.0");
+MODULE_VERSION("0.2.0-alpha");
 MODULE_ALIAS_FS("jbfs");
 
 module_init(jbfs_init);

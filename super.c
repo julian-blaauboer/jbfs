@@ -8,6 +8,8 @@
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/vfs.h>
+#include <linux/seq_file.h>
+#include <linux/parser.h>
 #include <linux/iversion.h>
 #include <linux/fs.h>
 #include "jbfs.h"
@@ -40,13 +42,61 @@ static void jbfs_put_super(struct super_block *sb)
 	kfree(sbi);
 }
 
+static int jbfs_show_options(struct seq_file *seq, struct dentry *root)
+{
+	struct super_block *sb = root->d_sb;
+	struct jbfs_sb_info *sbi = JBFS_SB(sb);
+
+	if (sbi->s_default_root != sbi->s_effective_root)
+		seq_printf(seq, ",root=%llu", sbi->s_effective_root);
+
+	return 0;
+};
+
 static const struct super_operations jbfs_sops = {
 	.alloc_inode = jbfs_alloc_inode,
 	.free_inode = jbfs_free_inode,
 	.write_inode = jbfs_write_inode,
 	.evict_inode = jbfs_evict_inode,
 	.put_super = jbfs_put_super,
+	.show_options = jbfs_show_options
 };
+
+enum { Opt_err, Opt_root };
+
+static const match_table_t tokens = {
+	{Opt_root, "root=%u"},
+	{Opt_err, NULL}
+};
+
+static int parse_options(char *options, struct jbfs_sb_info *sbi)
+{
+	char *p;
+	substring_t args[MAX_OPT_ARGS];
+	u64 option;
+	int token;
+
+	if (!options)
+		return 1;
+
+	while ((p = strsep(&options, ",")) != NULL) {
+		if (!*p)
+			continue;
+
+		token = match_token(p, tokens, args);
+		switch (token) {
+		case Opt_root:
+			if (match_u64(&args[0], &option))
+				return 0;
+			sbi->s_effective_root = option;
+			break;
+		default:
+			return 0;
+			break;
+		}
+	}
+	return 1;
+}
 
 static int jbfs_sanity_check(struct jbfs_sb_info *sbi)
 {
@@ -149,8 +199,13 @@ static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
 	sbi->s_offset_inodes = le32_to_cpu(js->s_offset_inodes);
 	sbi->s_offset_refmap = le32_to_cpu(js->s_offset_refmap);
 	sbi->s_offset_data = le32_to_cpu(js->s_offset_data);
+	sbi->s_default_root = le64_to_cpu(js->s_default_root);
+	sbi->s_effective_root = sbi->s_default_root;
 
 	memcpy(&sb->s_uuid, js->s_uuid, sizeof(js->s_uuid));
+
+	if (!parse_options((char *)data, sbi))
+		goto failed_mount;
 
 	if (!jbfs_sanity_check(sbi))
 		goto failed_mount;
@@ -165,7 +220,7 @@ static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_maxbytes =
 	    12 * (sbi->s_group_data_blocks << sbi->s_log_block_size);
 
-	root_inode = jbfs_iget(sb, 1);
+	root_inode = jbfs_iget(sb, sbi->s_effective_root);
 	if (IS_ERR(root_inode)) {
 		ret = PTR_ERR(root_inode);
 		printk(KERN_ERR "jbfs: cannot get root inode.\n");

@@ -31,6 +31,7 @@ struct jbfs_super_block {
 	__le32 s_offset_data;
 	__u8   s_label[48];
 	__u8   s_uuid[16];
+	__le64 s_default_root;
 	__le32 s_checksum;
 };
 
@@ -50,10 +51,14 @@ struct jbfs_sb_info {
 	uint32_t s_offset_inodes;
 	uint32_t s_offset_refmap;
 	uint32_t s_offset_data;
+	uint64_t s_default_root;
+	uint64_t s_effective_root;
 };
 
-#define JBFS_GROUP_LOCK(sbi, group) mutex_lock(&sbi->s_group_lock[group % JBFS_GROUP_N_LOCKS])
-#define JBFS_GROUP_UNLOCK(sbi, group) mutex_unlock(&sbi->s_group_lock[group % JBFS_GROUP_N_LOCKS])
+#define JBFS_GROUP_LOCK(sbi, group) \
+	mutex_lock(&sbi->s_group_lock[group % JBFS_GROUP_N_LOCKS])
+#define JBFS_GROUP_UNLOCK(sbi, group) \
+	mutex_unlock(&sbi->s_group_lock[group % JBFS_GROUP_N_LOCKS])
 
 struct jbfs_group_descriptor {
 	__le32 g_magic;

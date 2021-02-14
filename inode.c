@@ -253,18 +253,12 @@ int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask,
 {
 	struct super_block *sb = path->dentry->d_sb;
 	struct inode *inode = d_inode(path->dentry);
-	struct jbfs_inode_info *ji = JBFS_I(inode);
-	int i;
 
 	generic_fillattr(inode, stat);
 
-	// TODO: support i_cont
-	stat->blocks = 0;
-	for (i = 0; i < 12; ++i) {
-		if (!jbfs_extent_empty(&ji->i_extents[i]))
-			stat->blocks += jbfs_extent_size(&ji->i_extents[i]);
-	}
-	stat->blocks <<= sb->s_blocksize_bits - 9;
+	/* We don't support holes yet, so for now, this works. */
+	stat->blocks = (inode->i_size + sb->s_blocksize - 1);
+	stat->blocks = (stat->blocks & ~((u64)sb->s_blocksize - 1)) >> 9;
 
 	stat->blksize = sb->s_blocksize;
 	return 0;

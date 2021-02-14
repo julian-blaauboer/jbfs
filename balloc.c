@@ -1,330 +1,391 @@
 // SPDX-License-Identifier: GPL-2.0
-// Copyright (C) 2020, 2021 Julian Blaauboer
+// Copyright (C) 2021 Julian Blaauboer
 
 #include <linux/buffer_head.h>
 #include "jbfs.h"
 
-static int jbfs_alloc_blocks_local(struct super_block *sb, uint64_t group,
-				   uint64_t local, int n, int *err)
+struct jbfs_raw_extent {
+	__le64 start;
+	__le64 end;
+};
+
+struct cont_node {
+	__le64 length;
+	__le64 next;
+	struct jbfs_raw_extent extents[];
+};
+
+int jbfs_alloc_blocks_local(struct inode *inode, u64 *bno, int min, int max,
+			    u64 group, u64 local)
 {
-	struct jbfs_sb_info *sbi = JBFS_SB(sb);
 	struct buffer_head *bh;
-	uint64_t block, offset;
-	int i = 0;
-
-	*err = 0;
-
-	if (n <= 0 || local >= sbi->s_group_data_blocks) {
-		*err = -EINVAL;
-		return 0;
-	}
-
-	block =
-	    sbi->s_offset_group + group * sbi->s_group_size +
-	    sbi->s_offset_refmap + (local >> sbi->s_log_block_size);
-	offset = local & (sb->s_blocksize - 1);
-
-	bh = sb_bread(sb, block);
-	if (!bh) {
-		*err = -EIO;
-		return 0;
-	}
-
-	while (i < n) {
-		if (((uint8_t *) bh->b_data)[offset])
-			goto out;
-
-		((uint8_t *) bh->b_data)[offset] = 1;
-		i += 1;
-
-		if (++offset >= sb->s_blocksize) {
-			offset = 0;
-			block += 1;
-			mark_buffer_dirty(bh);
-			brelse(bh);
-
-			bh = sb_bread(sb, block);
-			if (!bh) {
-				*err = -EIO;
-				return i;
-			}
-		}
-	}
-
- out:
-	mark_buffer_dirty(bh);
-	brelse(bh);
-	return i;
-}
-
-static int jbfs_alloc_blocks(struct super_block *sb, uint64_t start, int n,
-			     int *err, int lock_group)
-{
+	struct super_block *sb = inode->i_sb;
 	struct jbfs_sb_info *sbi = JBFS_SB(sb);
-	uint64_t group, local;
-	int ret;
+	int i = local & (sb->s_blocksize - 1);
+	u64 best_start = local, best_n = 0, n = 0;
+	u64 block = jbfs_group_refmap_start(sbi, group) +
+		    (local >> inode->i_blkbits);
 
-	group = (start - sbi->s_offset_group) / sbi->s_group_size;
-	local =
-	    (start - sbi->s_offset_group) % sbi->s_group_size -
-	    sbi->s_offset_data;
-
-	if (lock_group)
-		JBFS_GROUP_LOCK(sbi, group);
-
-	if (start >= sbi->s_num_blocks) {
-		*err = -ENOSPC;
-		ret = 0;
-		goto out;
-	}
-
-	ret = jbfs_alloc_blocks_local(sb, group, local, n, err);
-
-out:
-	JBFS_GROUP_UNLOCK(sbi, group);
-	return ret;
-}
-
-static int jbfs_dealloc_blocks_local(struct super_block *sb, uint64_t group,
-				     uint64_t local, int n, int *err)
-{
-	struct jbfs_sb_info *sbi = JBFS_SB(sb);
-	struct buffer_head *bh;
-	uint64_t block, offset;
-	int i = 0;
-
-	*err = 0;
-
-	if (n <= 0 || local >= sbi->s_group_data_blocks) {
-		*err = -EINVAL;
-		return 0;
-	}
-
-	block =
-	    sbi->s_offset_group + group * sbi->s_group_size +
-	    sbi->s_offset_refmap + (local >> sbi->s_log_block_size);
-	offset = local & (sb->s_blocksize - 1);
-
-	bh = sb_bread(sb, block);
-	if (!bh) {
-		*err = -EIO;
-		return 0;
-	}
-
-	while (i < n) {
-		if (((uint8_t *) bh->b_data)[offset])
-			((uint8_t *) bh->b_data)[offset] -= 1;
-
-		i += 1;
-
-		if (++offset >= sb->s_blocksize) {
-			offset = 0;
-			block += 1;
-			mark_buffer_dirty(bh);
-			brelse(bh);
-
-			bh = sb_bread(sb, block);
-			if (!bh) {
-				*err = -EIO;
-				return i;
-			}
-		}
-	}
-
-	mark_buffer_dirty(bh);
-	brelse(bh);
-	return i;
-}
-
-static int jbfs_dealloc_blocks(struct super_block *sb, uint64_t start, int n,
-			       int *err)
-{
-	struct jbfs_sb_info *sbi = JBFS_SB(sb);
-	uint64_t group, local;
-	int ret;
-
-	group = (start - sbi->s_offset_group) / sbi->s_group_size;
-	local =
-	    (start - sbi->s_offset_group) % sbi->s_group_size -
-	    sbi->s_offset_data;
-
-	JBFS_GROUP_LOCK(sbi, group);
-
-	ret = jbfs_dealloc_blocks_local(sb, group, local, n, err);
-
-	JBFS_GROUP_UNLOCK(sbi, group);
-	return ret;
-}
-
-static uint64_t jbfs_find_free_in_group(struct super_block *sb, uint64_t group,
-					int n, int *err)
-{
-	struct jbfs_sb_info *sbi = JBFS_SB(sb);
-	struct buffer_head *bh;
-	int count = 0;
-	uint64_t block;
-	int offset = 0;
-	int i;
-
-	*err = 0;
-
-	block =
-	    sbi->s_offset_group + group * sbi->s_group_size +
-	    sbi->s_offset_refmap;
 	bh = sb_bread(sb, block);
 	if (!bh)
-		goto out_no_bh;
+		return -EIO;
 
-	for (i = 0; i < sbi->s_group_data_blocks; ++i) {
-		uint8_t ref = ((uint8_t *) bh->b_data)[offset];
-
-		if (!ref) {
-			if (++count == n)
-				break;
-		} else {
-			count = 0;
-		}
-
-		if (++offset == sb->s_blocksize) {
-			offset = 0;
+	for (; local < sbi->s_group_data_blocks; ++local, ++i) {
+		if (i == sb->s_blocksize) {
+			i = 0;
 			brelse(bh);
 			bh = sb_bread(sb, ++block);
 			if (!bh)
-				goto out_no_bh;
+				return -EIO;
+		}
+
+		if (((u8 *)bh->b_data)[i]) {
+			if (n > best_n) {
+				best_start = local - n;
+				best_n = n;
+			}
+			if (*bno)
+				break;
+			n = 0;
+		} else {
+			n += 1;
+		}
+
+		if (n >= max) {
+			best_start = local - n + 1;
+			best_n = n;
+			break;
 		}
 	}
 
 	brelse(bh);
 
-	if (count == n)
-		return sbi->s_offset_group + group * sbi->s_group_size +
-		    sbi->s_offset_data + i;
+	if (best_n < min)
+		return -ENOSPC;
 
-	*err = -ENOSPC;
-	return 0;
+	*bno = jbfs_block_compose(sbi, group, best_start);
 
- out_no_bh:
-	*err = -EIO;
-	return 0;
+	local = best_start;
+	i = local & (sb->s_blocksize - 1);
+
+	block = jbfs_group_refmap_start(sbi, group) +
+		(local >> inode->i_blkbits);
+
+	bh = sb_bread(inode->i_sb, block);
+	if (!bh)
+		return -EIO;
+
+	mark_buffer_dirty(bh);
+
+	for (; local < best_start + best_n; ++local, ++i) {
+		if (i == sb->s_blocksize) {
+			i = 0;
+			brelse(bh);
+			bh = sb_bread(inode->i_sb, ++block);
+			/* Note: Some of the blocks have already been allocated.
+			 * We should try to free them, but we don't (yet).
+			 */
+			if (!bh)
+				return -EIO;
+
+			mark_buffer_dirty(bh);
+		}
+
+		((u8 *)bh->b_data)[i] = 1;
+	}
+
+	brelse(bh);
+	return best_n;
 }
 
-static uint64_t jbfs_find_free(struct inode *inode, int n, int *err)
+int jbfs_alloc_blocks(struct inode *inode, u64 *bno, int min, int max)
 {
-	struct super_block *sb = inode->i_sb;
-	struct jbfs_sb_info *sbi = JBFS_SB(sb);
-	uint64_t start, group, block;
 
-	start = inode->i_ino >> sbi->s_local_inode_bits;
-	group = start;
+	struct jbfs_sb_info *sbi = JBFS_SB(inode->i_sb);
+	u64 group, local, start;
+	int n;
 
-	do {
-		// TODO: Check group descriptor
+	if (*bno) {
+		group = jbfs_block_extract_group(sbi, *bno);
+		local = jbfs_block_extract_local(sbi, *bno);
+
 		JBFS_GROUP_LOCK(sbi, group);
-
-		block = jbfs_find_free_in_group(sb, group, n, err);
-		if (block)
-			break;
-
+		n = jbfs_alloc_blocks_local(inode, bno, min, max, group, local);
 		JBFS_GROUP_UNLOCK(sbi, group);
 
-		if (*err == -EIO)
-			break;
+		return n;
+	}
 
-		if (++group >= sbi->s_num_groups)
+	group = jbfs_inode_extract_group(sbi, inode->i_ino);
+	start = group;
+
+	do {
+		JBFS_GROUP_LOCK(sbi, group);
+		n = jbfs_alloc_blocks_local(inode, bno, min, max, group, 0);
+		JBFS_GROUP_UNLOCK(sbi, group);
+
+		if (n >= min)
+			return n;
+
+		if (++group > sbi->s_num_groups)
 			group = 0;
 	} while (group != start);
 
-	return block;
+	return -ENOSPC;
 }
 
-uint64_t jbfs_new_block(struct inode *inode, int *err)
+int jbfs_alloc_extent(struct inode *inode, int n, u64 *bno,
+		      struct jbfs_extent *extent)
 {
-	struct jbfs_inode_info *jbfs_inode = JBFS_I(inode);
-	uint64_t start;
-	int n = 0;
-	int i;
+	int size;
 
-	// TODO: Support i_cont
-	for (i = 0; i < 12; ++i) {
-		if (!jbfs_inode->i_extents[i][0])
-			break;
+	if (jbfs_extent_empty(extent)) {
+		size = jbfs_alloc_blocks(inode, &extent->start, 1, n);
+		*bno = extent->start;
+		if (size >= 1)
+			extent->end = extent->start + size;
+	} else {
+		size = jbfs_alloc_blocks(inode, &extent->end, 0, n);
+		*bno = extent->end;
+		if (size >= 0)
+			extent->end += size;
 	}
 
-	/*
-	 * First, try extending previous extent.
-	 */
-	if (i > 0) {
-		n = jbfs_alloc_blocks(inode->i_sb,
-				      jbfs_inode->i_extents[i - 1][1] + 1, 1,
-				      err, 1);
-		jbfs_inode->i_extents[i - 1][1] += n;
+	return size;
+}
 
-		if (n) {
-			*err = 0;
-			i -= 1;
-			goto out;
+u64 jbfs_alloc_cont(struct inode *inode, struct buffer_head **bh, int *err)
+{
+	u64 bno = 0;
+	int n = jbfs_alloc_blocks(inode, &bno, 1, 1);
+	if (n < 1) {
+		*err = n;
+		return 0;
+	}
+
+	*bh = sb_bread(inode->i_sb, bno);
+	if (!*bh) {
+		*err = -EIO;
+		return 0;
+	}
+
+	memset((*bh)->b_data, 0, (*bh)->b_size);
+	mark_buffer_dirty(*bh);
+
+	return bno;
+}
+
+int jbfs_new_blocks_cont(struct inode *inode, sector_t iblock, u64 *bno,
+			 int max, struct buffer_head *bh,
+			 struct jbfs_raw_extent *raw)
+{
+	struct cont_node *node = (struct cont_node *)bh->b_data;
+	struct buffer_head *next_bh;
+	int size, err = 0;
+
+	printk(KERN_INFO "jbfs: hello from cont!\n");
+
+	if (raw != node->extents)
+		--raw;
+
+	for(;;) {
+		struct jbfs_raw_extent *end =
+		    (struct jbfs_raw_extent *)(bh->b_data + bh->b_size);
+
+		mark_buffer_dirty(bh);
+
+		for (; raw != end; ++raw) {
+			struct jbfs_extent extent;
+
+			extent.start = le64_to_cpu(raw->start);
+			extent.end = le64_to_cpu(raw->end);
+
+			size = jbfs_alloc_extent(inode, iblock + max, bno,
+						 &extent);
+
+			raw->start = cpu_to_le64(extent.start);
+			raw->end = cpu_to_le64(extent.end);
+
+			node->length = cpu_to_le64(le64_to_cpu(node->length) +
+						   size);
+
+			if (size < 0) {
+				brelse(bh);
+				return size;
+			}
+
+			if (size > iblock) {
+				brelse(bh);
+				*bno += iblock;
+				return size - iblock;
+			}
+
+			iblock -= size;
 		}
+
+		node->next = cpu_to_le64(jbfs_alloc_cont(inode, &next_bh, &err));
+		brelse(bh);
+		if (err < 0)
+			return err;
+
+		bh = next_bh;
+		node = (struct cont_node *)bh->b_data;
+		raw = node->extents;
 	}
 
-	if (i > 11) {
-		*err = -EFBIG;
-		return 0;
-	}
-
-	/*
-	 * Otherwise, start a new extent.
-	 */
-	start = jbfs_find_free(inode, 1, err);
-	if (!start)
-		return 0;
-
-	n = jbfs_alloc_blocks(inode->i_sb, start, 1, err, 0);
-	if (!n)
-		return 0;
-
-	jbfs_inode->i_extents[i][0] = start;
-	jbfs_inode->i_extents[i][1] = start;
-
-	*err = 0;
- out:
-	// TODO: Update group descriptor
-	mark_inode_dirty(inode);
-	return jbfs_inode->i_extents[i][1];
+	BUG();
+	return -EINVAL;
 }
 
-// TODO: Update group descriptor
-// TODO: Use i_cont
-// TODO: Error handling?
-void jbfs_truncate(struct inode *inode)
+int jbfs_new_blocks_local(struct inode *inode, sector_t iblock, u64 *bno,
+			  int max, int i)
 {
-	struct super_block *sb = inode->i_sb;
-	struct jbfs_sb_info *sbi = JBFS_SB(sb);
 	struct jbfs_inode_info *ji = JBFS_I(inode);
-	uint64_t blocks =
-	    (inode->i_size + sb->s_blocksize - 1) >> sbi->s_log_block_size;
-	uint64_t i;
-	int err;
+	struct buffer_head *bh;
+	struct cont_node *node;
+	int size, err = 0;
 
-	block_truncate_page(inode->i_mapping, inode->i_size, jbfs_get_block);
+	for (i = i ? i - 1 : i; i < JBFS_INODE_EXTENTS; ++i) {
+		size = jbfs_alloc_extent(inode, iblock + max, bno,
+					 &ji->i_extents[i]);
 
-	for (i = 0; i < 12; ++i) {
-		uint64_t start = ji->i_extents[i][0];
-		uint64_t end = ji->i_extents[i][1];
-		uint64_t len = end - start + !!start;
-		if (blocks && blocks >= len) {
-			blocks -= len;
-		} else if (blocks > 0) {
-			blocks -= 1;
-			jbfs_dealloc_blocks(inode->i_sb, start + blocks,
-					    len - blocks, &err);
-			ji->i_extents[i][1] = start + blocks;
-			blocks = 0;
-		} else {
-			jbfs_dealloc_blocks(inode->i_sb, start, len, &err);
-			ji->i_extents[i][0] = ji->i_extents[i][1] = 0;
+		if (size < 0)
+			return size;
+
+		if (size > iblock) {
+			*bno += iblock;
+			return size - iblock;
 		}
+
+		iblock -= size;
 	}
 
-	inode->i_mtime = inode->i_ctime = current_time(inode);
-	mark_inode_dirty(inode);
+	ji->i_cont = jbfs_alloc_cont(inode, &bh, &err);
+	if (err < 0)
+		return err;
+
+	node = (struct cont_node *)bh->b_data;
+	return jbfs_new_blocks_cont(inode, iblock, bno, max, bh,
+				    node->extents);
 }
+
+int jbfs_get_blocks(struct inode *inode, sector_t iblock, u64 *bno, int max,
+		    int create, bool *new, bool *boundary)
+{
+	struct jbfs_inode_info *ji = JBFS_I(inode);
+	struct buffer_head *bh;
+	u64 cont = ji->i_cont;
+	int size, i;
+	int ret = 0;
+
+	for (i = 0; i < JBFS_INODE_EXTENTS; ++i) {
+		if (jbfs_extent_empty(&ji->i_extents[i]))
+			break;
+
+		size = jbfs_extent_size(&ji->i_extents[i]);
+		if (size > iblock) {
+			*bno = ji->i_extents[i].start + iblock;
+			size -= iblock;
+			if (size <= max) {
+				*boundary = true;
+				max = size;
+			}
+			return max;
+		}
+		iblock -= size;
+	}
+
+	if (!cont) {
+		if (!create)
+			return -EIO;
+
+		ret = jbfs_new_blocks_local(inode, iblock, bno, max, i);
+		if (ret > 0)
+			*new = true;
+
+		return ret;
+	}
+
+	do {
+		struct cont_node *node;
+		struct jbfs_raw_extent *raw, *end;
+		struct jbfs_extent extent;
+
+		bh = sb_bread(inode->i_sb, cont);
+		if (!bh)
+			return -EIO;
+
+		node = (struct cont_node *)bh->b_data;
+		cont = le64_to_cpu(node->next);
+		size = le64_to_cpu(node->length);
+
+		end = (struct jbfs_raw_extent *)(bh->b_data + bh->b_size);
+
+		if (size >= iblock && cont) {
+			iblock -= size;
+			raw = end;
+			brelse(bh);
+			continue;
+		}
+
+		for (raw = node->extents; raw != end; ++raw) {
+			extent.start = le64_to_cpu(raw->start);
+			extent.end = le64_to_cpu(raw->end);
+
+			if (jbfs_extent_empty(&extent))
+				break;
+
+			size = jbfs_extent_size(&extent);
+			if (iblock < size) {
+				*bno = ji->i_extents[i].start + iblock;
+				size -= iblock;
+				if (size <= max) {
+					*boundary = true;
+					max = size;
+				}
+				brelse(bh);
+				return max;
+			}
+			iblock -= size;
+		}
+
+		if (!cont) {
+			if (!create)
+				return -EIO;
+
+			ret = jbfs_new_blocks_cont(inode, iblock, bno, max, bh,
+						   raw);
+			if (ret > 0)
+				*new = true;
+
+			return ret;
+		}
+
+		brelse(bh);
+	} while (cont);
+
+	return -EIO;
+}
+
+int jbfs_get_block(struct inode *inode, sector_t iblock,
+		   struct buffer_head *bh_result, int create)
+{
+	bool new = false, boundary = false;
+	unsigned long max = bh_result->b_size >> inode->i_blkbits;
+	u64 bno;
+	int n;
+
+	n = jbfs_get_blocks(inode, iblock, &bno, max, create, &new, &boundary);
+	if (n <= 0)
+		return n;
+
+	map_bh(bh_result, inode->i_sb, bno);
+	bh_result->b_size = n << inode->i_blkbits;
+	if (new)
+		set_buffer_new(bh_result);
+	if (boundary)
+		set_buffer_boundary(bh_result);
+	return 0;
+}
+
+void jbfs_truncate(struct inode *inode) {}

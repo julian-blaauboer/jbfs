@@ -11,74 +11,6 @@
 #include <linux/uio.h>
 #include "jbfs.h"
 
-int jbfs_get_block(struct inode *inode, sector_t iblock,
-		   struct buffer_head *bh_result, int create)
-{
-	struct jbfs_inode_info *jbfs_inode;
-	struct jbfs_sb_info *sbi;
-	sector_t block;
-	int ret = -EIO;
-	int i;
-
-	jbfs_inode = JBFS_I(inode);
-	sbi = JBFS_SB(inode->i_sb);
-
-	for (i = 0; i < 12; ++i) {
-		uint64_t start = jbfs_inode->i_extents[i][0];
-		uint64_t end = jbfs_inode->i_extents[i][1];
-		uint64_t len = end - start + 1;
-		if (!start)
-			break;
-		if (iblock < len) {
-			block = start + iblock;
-			ret = 0;
-			break;
-		}
-		iblock -= len;
-	}
-
-	/*
-	 * Simplest case: block found, no allocation needed.
-	 */
-	if (ret == 0)
-		goto out;
-
-	if (!create)
-		return ret;
-
-	/*
-	 * Allocate new blocks one block at a time.
-	 */
-	while (iblock--) {
-		jbfs_new_block(inode, &ret);
-		if (ret)
-			goto out_err;
-	}
-
-	block = jbfs_new_block(inode, &ret);
-	if (ret)
-		goto out_err;
-
-	set_buffer_new(bh_result);
- out:
-	if (block >= sbi->s_num_blocks) {
-		printk(KERN_WARNING
-		       "jbfs: block %llu in inode %lu outside of filesystem\n",
-			block, inode->i_ino);
-		ret = -EIO;
-		goto out_err;
-	}
-
-	map_bh(bh_result, inode->i_sb, block);
-	return 0;
-
- out_err:
-	printk(KERN_WARNING
-	       "jbfs: allocating new block for inode %lu failed with code %d\n",
-	       inode->i_ino, ret);
-	return ret;
-}
-
 static int jbfs_writepage(struct page *page, struct writeback_control *wbc)
 {
 	return block_write_full_page(page, jbfs_get_block, wbc);
@@ -239,13 +171,13 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
 
 	inode->i_blocks = 0;
 	for (i = 0; i < 12; ++i) {
-		jbfs_inode->i_extents[i][0] =
+		jbfs_inode->i_extents[i].start =
 		    le64_to_cpu(raw_inode->i_extents[i][0]);
-		jbfs_inode->i_extents[i][1] =
+		jbfs_inode->i_extents[i].end =
 		    le64_to_cpu(raw_inode->i_extents[i][1]);
 	}
 
-	jbfs_set_inode(inode, new_decode_dev(raw_inode->i_extents[0][0]));
+	jbfs_set_inode(inode, new_decode_dev(jbfs_inode->i_extents[0].start));
 
 	brelse(bh);
 	unlock_new_inode(inode);
@@ -284,9 +216,9 @@ int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc)
 	else
 		for (i = 0; i < 12; ++i) {
 			raw_inode->i_extents[i][0] =
-			    cpu_to_le64(jbfs_inode->i_extents[i][0]);
+			    cpu_to_le64(jbfs_inode->i_extents[i].start);
 			raw_inode->i_extents[i][1] =
-			    cpu_to_le64(jbfs_inode->i_extents[i][1]);
+			    cpu_to_le64(jbfs_inode->i_extents[i].end);
 		}
 	raw_inode->i_cont = cpu_to_le64(jbfs_inode->i_cont);
 
@@ -320,7 +252,6 @@ int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask,
 		 unsigned int flags)
 {
 	struct super_block *sb = path->dentry->d_sb;
-	struct jbfs_sb_info *sbi = JBFS_SB(sb);
 	struct inode *inode = d_inode(path->dentry);
 	struct jbfs_inode_info *ji = JBFS_I(inode);
 	int i;
@@ -330,11 +261,10 @@ int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask,
 	// TODO: support i_cont
 	stat->blocks = 0;
 	for (i = 0; i < 12; ++i) {
-		uint64_t start = ji->i_extents[i][0];
-		uint64_t end = ji->i_extents[i][1];
-		stat->blocks +=
-		    (end - start + !!start) << (sbi->s_log_block_size - 9);
+		if (!jbfs_extent_empty(&ji->i_extents[i]))
+			stat->blocks += jbfs_extent_size(&ji->i_extents[i]);
 	}
+	stat->blocks <<= sb->s_blocksize_bits - 9;
 
 	stat->blksize = sb->s_blocksize;
 	return 0;

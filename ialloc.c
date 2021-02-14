@@ -72,10 +72,9 @@ struct inode *jbfs_new_inode(struct inode *dir, umode_t mode)
 
 	ji->i_flags = 0;
 	for (i = 0; i < 12; ++i) {
-		ji->i_extents[i][0] = 0;
-		ji->i_extents[i][1] = 0;
+		ji->i_extents[i].start = 0;
+		ji->i_extents[i].end = 0;
 	}
-	// TODO: Support i_cont
 	ji->i_cont = 0;
 
 	insert_inode_hash(inode);

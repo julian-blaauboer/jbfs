@@ -67,6 +67,11 @@ struct jbfs_group_descriptor {
 	__le32 g_checksum;
 };
 
+struct jbfs_extent {
+	u64 start;
+	u64 end;
+};
+
 struct jbfs_inode {
 	__le16 i_mode;
 	__le16 i_nlinks;
@@ -81,9 +86,11 @@ struct jbfs_inode {
 	__le64 i_cont;
 };
 
+#define JBFS_INODE_EXTENTS 12
+
 struct jbfs_inode_info {
 	uint32_t i_flags;
-	uint64_t i_extents[12][2];
+	struct jbfs_extent i_extents[12];
 	uint64_t i_cont;
 	struct inode vfs_inode;
 };
@@ -96,6 +103,82 @@ struct jbfs_dirent {
 };
 
 #define JBFS_DIRENT_SIZE(n) ((11+n+7) & ~7)
+
+static inline u64 jbfs_block_extract_group(const struct jbfs_sb_info *sbi,
+					   u64 block)
+{
+	return (block - sbi->s_offset_group) / sbi->s_group_size;
+}
+
+static inline u64 jbfs_block_extract_local(const struct jbfs_sb_info *sbi,
+					   u64 block)
+{
+	return (block - sbi->s_offset_group) % sbi->s_group_size -
+	        sbi->s_offset_data;
+}
+
+static inline u64 jbfs_block_compose(const struct jbfs_sb_info *sbi,
+				     u64 group, u64 local)
+{
+	return sbi->s_offset_group + group * sbi->s_group_size +
+	       sbi->s_offset_data + local;
+}
+
+static inline u64 jbfs_inode_extract_group(const struct jbfs_sb_info *sbi,
+					   u64 inode)
+{
+	return (inode - 1) >> sbi->s_local_inode_bits;
+}
+
+static inline u64 jbfs_inode_extract_local(const struct jbfs_sb_info *sbi,
+					   u64 inode)
+{
+	return (inode - 1) & ((1ull << sbi->s_local_inode_bits) - 1);
+}
+
+static inline u64 jbfs_inode_compose(const struct jbfs_sb_info *sbi,
+				     u64 group, u64 local)
+{
+	return (group << sbi->s_local_inode_bits) + local + 1;
+}
+
+static inline u64 jbfs_group_desc_block(const struct jbfs_sb_info *sbi,
+					u64 group)
+{
+	return sbi->s_offset_group + group * sbi->s_group_size;
+}
+
+static inline u64 jbfs_group_bitmap_start(const struct jbfs_sb_info *sbi,
+					  u64 group)
+{
+	return jbfs_group_desc_block(sbi, group) + 1;
+}
+
+static inline u64 jbfs_group_inodes_start(const struct jbfs_sb_info *sbi,
+					  u64 group)
+{
+	return jbfs_group_desc_block(sbi, group) + sbi->s_offset_inodes;
+}
+
+static inline u64 jbfs_group_refmap_start(const struct jbfs_sb_info *sbi,
+					  u64 group)
+{
+	return jbfs_group_desc_block(sbi, group) + sbi->s_offset_refmap;
+}
+
+static inline u64 jbfs_group_data_start(const struct jbfs_sb_info *sbi,
+					u64 group)
+{
+	return jbfs_group_desc_block(sbi, group) + sbi->s_offset_data;
+}
+
+static inline bool jbfs_extent_empty(const struct jbfs_extent *extent) {
+	return extent->start == 0;
+}
+
+static inline u64 jbfs_extent_size(const struct jbfs_extent *extent) {
+	return extent->end - extent->start;
+}
 
 static inline struct jbfs_inode_info *JBFS_I(struct inode *inode)
 {

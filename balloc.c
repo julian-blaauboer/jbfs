@@ -23,6 +23,7 @@ int jbfs_alloc_blocks_local(struct inode *inode, u64 *bno, int min, int max,
 	struct jbfs_sb_info *sbi = JBFS_SB(sb);
 	int i = local & (sb->s_blocksize - 1);
 	u64 best_start = local, best_n = 0, n = 0;
+	u64 limit = sbi->s_group_data_blocks;
 	u64 block = jbfs_group_refmap_start(sbi, group) +
 		    (local >> inode->i_blkbits);
 
@@ -30,7 +31,10 @@ int jbfs_alloc_blocks_local(struct inode *inode, u64 *bno, int min, int max,
 	if (!bh)
 		return -EIO;
 
-	for (; local < sbi->s_group_data_blocks; ++local, ++i) {
+	if (group == sbi->s_num_groups - 1)
+		limit = jbfs_block_extract_local(sbi, sbi->s_num_blocks - 1) + 1;
+
+	for (; local < limit; ++local, ++i) {
 		if (i == sb->s_blocksize) {
 			i = 0;
 			brelse(bh);

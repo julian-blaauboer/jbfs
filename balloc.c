@@ -376,12 +376,15 @@ int jbfs_get_blocks(struct inode *inode, sector_t iblock, u64 *bno, int max,
 int jbfs_get_block(struct inode *inode, sector_t iblock,
 		   struct buffer_head *bh_result, int create)
 {
+	struct jbfs_inode_info *ji = JBFS_I(inode);
 	bool new = false, boundary = false;
 	unsigned long max = bh_result->b_size >> inode->i_blkbits;
 	u64 bno;
 	int n;
 
+	mutex_lock(&ji->i_mutex);
 	n = jbfs_get_blocks(inode, iblock, &bno, max, create, &new, &boundary);
+	mutex_unlock(&ji->i_mutex);
 	if (n <= 0)
 		return n;
 
@@ -448,6 +451,8 @@ void jbfs_truncate(struct inode *inode)
 	blocks = (inode->i_size + sb->s_blocksize - 1) >> sb->s_blocksize_bits;
 
 	block_truncate_page(inode->i_mapping, inode->i_size, jbfs_get_block);
+
+	mutex_lock(&ji->i_mutex);
 
 	for (i = 0; i < JBFS_INODE_EXTENTS && blocks; ++i) {
 		if (jbfs_extent_empty(&ji->i_extents[i]))
@@ -548,6 +553,7 @@ done_cont:
 	}
 
 done:
+	mutex_unlock(&ji->i_mutex);
 	inode->i_mtime = inode->i_ctime = current_time(inode);
 	mark_inode_dirty(inode);
 }

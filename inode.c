@@ -126,7 +126,7 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
 {
 	struct inode *inode;
 	struct jbfs_inode *raw_inode;
-	struct jbfs_inode_info *jbfs_inode;
+	struct jbfs_inode_info *ji;
 	struct jbfs_sb_info *sbi;
 	struct buffer_head *bh;
 	uint16_t nlinks;
@@ -142,7 +142,7 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
 		return inode;
 	}
 
-	jbfs_inode = JBFS_I(inode);
+	ji = JBFS_I(inode);
 
 	raw_inode = jbfs_raw_inode(sb, ino, &bh);
 	if (!raw_inode) {
@@ -162,22 +162,23 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
 	set_nlink(inode, le16_to_cpu(raw_inode->i_nlinks));
 	i_uid_write(inode, le32_to_cpu(raw_inode->i_uid));
 	i_gid_write(inode, le32_to_cpu(raw_inode->i_gid));
-	jbfs_inode->i_flags = le32_to_cpu(raw_inode->i_flags);
+	ji->i_flags = le32_to_cpu(raw_inode->i_flags);
 	inode->i_size = le64_to_cpu(raw_inode->i_size);
 	jbfs_decode_time(&inode->i_mtime, le64_to_cpu(raw_inode->i_mtime));
 	jbfs_decode_time(&inode->i_atime, le64_to_cpu(raw_inode->i_atime));
 	jbfs_decode_time(&inode->i_ctime, le64_to_cpu(raw_inode->i_ctime));
-	jbfs_inode->i_cont = le64_to_cpu(raw_inode->i_cont);
+	ji->i_cont = le64_to_cpu(raw_inode->i_cont);
+	mutex_init(&ji->i_mutex);
 
 	inode->i_blocks = 0;
 	for (i = 0; i < 12; ++i) {
-		jbfs_inode->i_extents[i].start =
+		ji->i_extents[i].start =
 		    le64_to_cpu(raw_inode->i_extents[i][0]);
-		jbfs_inode->i_extents[i].end =
+		ji->i_extents[i].end =
 		    le64_to_cpu(raw_inode->i_extents[i][1]);
 	}
 
-	jbfs_set_inode(inode, new_decode_dev(jbfs_inode->i_extents[0].start));
+	jbfs_set_inode(inode, new_decode_dev(ji->i_extents[0].start));
 
 	brelse(bh);
 	unlock_new_inode(inode);

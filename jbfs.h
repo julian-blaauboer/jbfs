@@ -92,6 +92,7 @@ struct jbfs_inode_info {
 	uint32_t i_flags;
 	struct jbfs_extent i_extents[12];
 	uint64_t i_cont;
+	struct mutex i_mutex;
 	struct inode vfs_inode;
 };
 

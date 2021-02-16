@@ -188,8 +188,6 @@ int jbfs_new_blocks_cont(struct inode *inode, sector_t iblock, u64 *bno,
 	struct buffer_head *next_bh;
 	int size, err = 0;
 
-	printk(KERN_INFO "jbfs: hello from cont!\n");
-
 	if (raw != node->extents)
 		--raw;
 
@@ -343,7 +341,7 @@ int jbfs_get_blocks(struct inode *inode, sector_t iblock, u64 *bno, int max,
 
 			size = jbfs_extent_size(&extent);
 			if (iblock < size) {
-				*bno = ji->i_extents[i].start + iblock;
+				*bno = extent.start + iblock;
 				size -= iblock;
 				if (size <= max) {
 					*boundary = true;

@@ -216,9 +216,7 @@ static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_op = &jbfs_sops;
 	sb->s_time_min = 0;
 	sb->s_time_max = 1ull << JBFS_TIME_SECOND_BITS;
-	// TODO: Support i_cont
-	sb->s_maxbytes =
-	    12 * (sbi->s_group_data_blocks << sbi->s_log_block_size);
+	sb->s_maxbytes = MAX_LFS_FILESIZE;
 
 	root_inode = jbfs_iget(sb, sbi->s_effective_root);
 	if (IS_ERR(root_inode)) {

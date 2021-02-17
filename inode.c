@@ -171,7 +171,7 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
 	mutex_init(&ji->i_mutex);
 
 	inode->i_blocks = 0;
-	for (i = 0; i < 12; ++i) {
+	for (i = 0; i < JBFS_INODE_EXTENTS; ++i) {
 		ji->i_extents[i].start =
 		    le64_to_cpu(raw_inode->i_extents[i][0]);
 		ji->i_extents[i].end =
@@ -215,7 +215,7 @@ int jbfs_write_inode(struct inode *inode, struct writeback_control *wbc)
 		raw_inode->i_extents[0][0] =
 		    cpu_to_le64(new_decode_dev(inode->i_rdev));
 	else
-		for (i = 0; i < 12; ++i) {
+		for (i = 0; i < JBFS_INODE_EXTENTS; ++i) {
 			raw_inode->i_extents[i][0] =
 			    cpu_to_le64(jbfs_inode->i_extents[i].start);
 			raw_inode->i_extents[i][1] =

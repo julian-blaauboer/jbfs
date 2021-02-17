@@ -71,7 +71,7 @@ struct inode *jbfs_new_inode(struct inode *dir, umode_t mode)
 	inode->i_mode = mode;
 
 	ji->i_flags = 0;
-	for (i = 0; i < 12; ++i) {
+	for (i = 0; i < JBFS_INODE_EXTENTS; ++i) {
 		ji->i_extents[i].start = 0;
 		ji->i_extents[i].end = 0;
 	}

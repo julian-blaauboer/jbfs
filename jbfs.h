@@ -72,6 +72,8 @@ struct jbfs_extent {
 	u64 end;
 };
 
+#define JBFS_INODE_EXTENTS 12
+
 struct jbfs_inode {
 	__le16 i_mode;
 	__le16 i_nlinks;
@@ -82,15 +84,13 @@ struct jbfs_inode {
 	__le64 i_mtime;
 	__le64 i_atime;
 	__le64 i_ctime;
-	__le64 i_extents[12][2];
+	__le64 i_extents[JBFS_INODE_EXTENTS][2];
 	__le64 i_cont;
 };
 
-#define JBFS_INODE_EXTENTS 12
-
 struct jbfs_inode_info {
 	uint32_t i_flags;
-	struct jbfs_extent i_extents[12];
+	struct jbfs_extent i_extents[JBFS_INODE_EXTENTS];
 	uint64_t i_cont;
 	struct mutex i_mutex;
 	struct inode vfs_inode;

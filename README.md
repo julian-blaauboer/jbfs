@@ -17,8 +17,6 @@ be a lot closer to 'usable' (but probably not 'useful').
 - Update and check group descriptors during inode allocation/deallocation.
 - Add inode and block counts to super block (for `statfs`).
 - Add `statfs`.
-- Add support for the `i_cont` field to allow for more than 12 extents per inode, this requires reworking
-  a significant part of the block (de)allocation algorithms.
 ### Long-term
 - Add support for reflinks, this mostly requires implementing CoW.
 - Add support for journaling (at least metadata).

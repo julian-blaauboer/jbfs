@@ -32,6 +32,8 @@ struct jbfs_super_block {
 	__u8   s_label[48];
 	__u8   s_uuid[16];
 	__le64 s_default_root;
+	__le64 s_free_blocks;
+	__le64 s_free_inodes;
 	__le32 s_checksum;
 };
 
@@ -39,6 +41,7 @@ struct jbfs_sb_info {
 	struct jbfs_super_block *s_js;
 	struct buffer_head *s_sbh;
 	struct mutex s_group_lock[JBFS_GROUP_N_LOCKS];
+	spinlock_t s_lock;
 	uint32_t s_log_block_size;
 	uint64_t s_flags;
 	uint64_t s_num_blocks;
@@ -53,6 +56,8 @@ struct jbfs_sb_info {
 	uint32_t s_offset_data;
 	uint64_t s_default_root;
 	uint64_t s_effective_root;
+	uint64_t s_free_blocks;
+	uint64_t s_free_inodes;
 };
 
 #define JBFS_GROUP_LOCK(sbi, group) \

@@ -99,6 +99,11 @@ int jbfs_alloc_blocks_local(struct inode *inode, u64 *bno, int min, int max,
 	}
 
 	brelse(bh);
+
+	spin_lock(&sbi->s_lock);
+	sbi->s_free_blocks -= best_n;
+	spin_unlock(&sbi->s_lock);
+
 	return best_n;
 }
 
@@ -110,8 +115,8 @@ int jbfs_alloc_blocks(struct inode *inode, u64 *bno, int min, int max)
 	int n;
 
 	if (*bno) {
-		group = jbfs_block_extract_group(sbi, *bno);
-		local = jbfs_block_extract_local(sbi, *bno);
+		group = jbfs_block_extract_group(sbi, *bno - 1);
+		local = jbfs_block_extract_local(sbi, *bno - 1) + 1;
 
 		JBFS_GROUP_LOCK(sbi, group);
 		n = jbfs_alloc_blocks_local(inode, bno, min, max, group, local);
@@ -131,7 +136,7 @@ int jbfs_alloc_blocks(struct inode *inode, u64 *bno, int min, int max)
 		if (n >= min)
 			return n;
 
-		if (++group > sbi->s_num_groups)
+		if (++group >= sbi->s_num_groups)
 			group = 0;
 	} while (group != start);
 
@@ -404,6 +409,7 @@ static void jbfs_dealloc_blocks(struct super_block *sb, u64 start, u64 size)
 	u64 limit = sbi->s_group_data_blocks;
 	u64 block = jbfs_group_refmap_start(sbi, group) +
 		    (local >> sb->s_blocksize_bits);
+	u64 n = size;
 	int i = local & (sb->s_blocksize - 1);
 
 	if (start + size > sbi->s_num_blocks)
@@ -417,7 +423,7 @@ static void jbfs_dealloc_blocks(struct super_block *sb, u64 start, u64 size)
 
 	mark_buffer_dirty(bh);
 
-	for (; local < limit && size; ++local, ++i, --size) {
+	for (; local < limit && n; ++local, ++i, --n) {
 		if (i == sb->s_blocksize) {
 			i = 0;
 			brelse(bh);
@@ -432,6 +438,10 @@ static void jbfs_dealloc_blocks(struct super_block *sb, u64 start, u64 size)
 	}
 
 	brelse(bh);
+
+	spin_lock(&sbi->s_lock);
+	sbi->s_free_blocks += size;
+	spin_unlock(&sbi->s_lock);
 
 out:
 	JBFS_GROUP_UNLOCK(sbi, group);

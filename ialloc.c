@@ -80,6 +80,10 @@ struct inode *jbfs_new_inode(struct inode *dir, umode_t mode)
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
 
+	spin_lock(&sbi->s_lock);
+	sbi->s_free_inodes -= 1;
+	spin_unlock(&sbi->s_lock);
+
 	return inode;
 }
 
@@ -89,11 +93,9 @@ int jbfs_delete_inode(struct inode *inode)
 	struct jbfs_sb_info *sbi = JBFS_SB(sb);
 	struct buffer_head *bh;
 	int ret = 0;
-	uint64_t group = inode->i_ino >> sbi->s_local_inode_bits;
-	uint64_t local =
-	    (inode->i_ino & ((1ull << sbi->s_local_inode_bits) - 1)) - 1;
-	uint64_t block =
-	    sbi->s_offset_group + group * sbi->s_group_size + 1 +
+	uint64_t group = jbfs_inode_extract_group(sbi, inode->i_ino);
+	uint64_t local = jbfs_inode_extract_local(sbi, inode->i_ino);
+	uint64_t block = jbfs_group_bitmap_start(sbi, group) +
 	    (local >> (sbi->s_log_block_size + 3));
 	local &= sb->s_blocksize * 8 - 1;
 
@@ -107,6 +109,10 @@ int jbfs_delete_inode(struct inode *inode)
 	clear_bit(local, (unsigned long *)bh->b_data);
 	mark_buffer_dirty(bh);
 	brelse(bh);
+
+	spin_lock(&sbi->s_lock);
+	sbi->s_free_inodes += 1;
+	spin_unlock(&sbi->s_lock);
 out:
 	JBFS_GROUP_UNLOCK(sbi, group);
 	return ret;

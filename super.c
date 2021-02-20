@@ -8,6 +8,7 @@
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/vfs.h>
+#include <linux/statfs.h>
 #include <linux/seq_file.h>
 #include <linux/parser.h>
 #include <linux/iversion.h>
@@ -33,9 +34,52 @@ static void jbfs_free_inode(struct inode *inode)
 	kmem_cache_free(jbfs_inode_cache, JBFS_I(inode));
 }
 
+static void jbfs_sync_super(struct jbfs_sb_info *sbi, bool wait)
+{
+	spin_lock(&sbi->s_lock);
+	sbi->s_js->s_free_blocks = cpu_to_le64(sbi->s_free_blocks);
+	sbi->s_js->s_free_inodes = cpu_to_le64(sbi->s_free_inodes);
+	spin_unlock(&sbi->s_lock);
+	mark_buffer_dirty(sbi->s_sbh);
+	if (wait)
+		sync_dirty_buffer(sbi->s_sbh);
+}
+
+static int jbfs_sync_fs(struct super_block *sb, int wait)
+{
+	struct jbfs_sb_info *sbi = JBFS_SB(sb);
+	jbfs_sync_super(sbi, wait);
+	return 0;
+}
+
+static int jbfs_statfs(struct dentry *dentry, struct kstatfs *buf)
+{
+	struct super_block *sb = dentry->d_sb;
+	struct jbfs_sb_info *sbi = JBFS_SB(sb);
+
+	spin_lock(&sbi->s_lock);
+	buf->f_type = JBFS_SUPER_MAGIC;
+	buf->f_bsize = sb->s_blocksize;
+	buf->f_blocks = sbi->s_num_blocks - sbi->s_offset_group -
+			sbi->s_offset_data * sbi->s_num_groups;
+	buf->f_bfree = sbi->s_free_blocks;
+	buf->f_bavail = sbi->s_free_blocks;
+	buf->f_files = sbi->s_num_groups * sbi->s_group_inodes;
+	buf->f_ffree = sbi->s_free_inodes;
+	buf->f_namelen = 255;
+	buf->f_fsid =
+		u64_to_fsid(((u64 *)&sb->s_uuid)[0] ^ ((u64 *)&sb->s_uuid)[1]);
+	spin_unlock(&sbi->s_lock);
+
+	return 0;
+}
+
 static void jbfs_put_super(struct super_block *sb)
 {
 	struct jbfs_sb_info *sbi = JBFS_SB(sb);
+
+	if (!sb_rdonly(sb))
+		jbfs_sync_super(sbi, true);
 
 	sb->s_fs_info = NULL;
 	brelse(sbi->s_sbh);
@@ -59,6 +103,8 @@ static const struct super_operations jbfs_sops = {
 	.write_inode = jbfs_write_inode,
 	.evict_inode = jbfs_evict_inode,
 	.put_super = jbfs_put_super,
+	.sync_fs = jbfs_sync_fs,
+	.statfs = jbfs_statfs,
 	.show_options = jbfs_show_options
 };
 
@@ -185,6 +231,8 @@ static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
 		goto reread_sb;
 	}
 
+	spin_lock_init(&sbi->s_lock);
+
 	sbi->s_js = js;
 	sbi->s_sbh = bh;
 	sbi->s_log_block_size = le32_to_cpu(js->s_log_block_size);
@@ -201,6 +249,8 @@ static int jbfs_fill_super(struct super_block *sb, void *data, int silent)
 	sbi->s_offset_data = le32_to_cpu(js->s_offset_data);
 	sbi->s_default_root = le64_to_cpu(js->s_default_root);
 	sbi->s_effective_root = sbi->s_default_root;
+	sbi->s_free_blocks = le64_to_cpu(js->s_free_blocks);
+	sbi->s_free_inodes = le64_to_cpu(js->s_free_inodes);
 
 	memcpy(&sb->s_uuid, js->s_uuid, sizeof(js->s_uuid));
 

@@ -25,6 +25,7 @@ static struct inode *jbfs_alloc_inode(struct super_block *sb)
 		return NULL;
 	}
 
+	mutex_init(&ji->i_mutex);
 	inode_set_iversion(&ji->vfs_inode, 1);
 	return &ji->vfs_inode;
 }

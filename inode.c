@@ -79,6 +79,13 @@ static const struct inode_operations jbfs_symlink_inode_operations = {
 	.getattr = jbfs_getattr
 };
 
+static blkcnt_t jbfs_count_inode_blocks(struct inode *inode)
+{
+	/* We don't support holes yet, so for now, this works. */
+	blkcnt_t blocks = inode->i_size + inode->i_sb->s_blocksize - 1;
+	return (blocks & ~((u64)inode->i_sb->s_blocksize - 1)) >> 9;
+}
+
 static struct jbfs_inode *jbfs_raw_inode(struct super_block *sb,
 					 unsigned long ino,
 					 struct buffer_head **bh)
@@ -170,7 +177,7 @@ struct inode *jbfs_iget(struct super_block *sb, unsigned long ino)
 	ji->i_cont = le64_to_cpu(raw_inode->i_cont);
 	mutex_init(&ji->i_mutex);
 
-	inode->i_blocks = 0;
+	inode->i_blocks = jbfs_count_inode_blocks(inode);
 	for (i = 0; i < JBFS_INODE_EXTENTS; ++i) {
 		ji->i_extents[i].start =
 		    le64_to_cpu(raw_inode->i_extents[i][0]);
@@ -257,9 +264,7 @@ int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask,
 
 	generic_fillattr(inode, stat);
 
-	/* We don't support holes yet, so for now, this works. */
-	stat->blocks = (inode->i_size + sb->s_blocksize - 1);
-	stat->blocks = (stat->blocks & ~((u64)sb->s_blocksize - 1)) >> 9;
+	stat->blocks = jbfs_count_inode_blocks(inode);
 
 	stat->blksize = sb->s_blocksize;
 	return 0;

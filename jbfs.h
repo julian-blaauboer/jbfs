@@ -212,7 +212,8 @@ void jbfs_evict_inode(struct inode *inode);
 uint64_t jbfs_new_block(struct inode *inode, int *err);
 void jbfs_truncate(struct inode *inode);
 
-struct inode *jbfs_new_inode(struct inode *dir, umode_t mode);
+struct inode *jbfs_new_inode(struct user_namespace *mnt_userns,
+			     struct inode *dir, umode_t mode);
 int jbfs_delete_inode(struct inode *inode);
 
 int jbfs_set_link(struct inode *dir, struct jbfs_dirent *de, struct page *page,
@@ -226,8 +227,8 @@ int jbfs_empty_dir(struct inode *inode);
 int jbfs_make_empty(struct inode *inode, struct inode *parent);
 ino_t jbfs_inode_by_name(struct dentry *dentry);
 
-int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask,
-		 unsigned int flags);
+int jbfs_getattr(struct user_namespace *mnt_userns, const struct path *path,
+		 struct kstat *stat, u32 request_mask, unsigned int flags);
 
 extern const struct file_operations jbfs_dir_operations;
 extern const struct inode_operations jbfs_dir_inode_operations;

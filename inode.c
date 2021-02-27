@@ -256,13 +256,13 @@ void jbfs_evict_inode(struct inode *inode)
 		jbfs_delete_inode(inode);
 }
 
-int jbfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask,
-		 unsigned int flags)
+int jbfs_getattr(struct user_namespace *mnt_userns, const struct path *path,
+		 struct kstat *stat, u32 request_mask, unsigned int flags)
 {
 	struct super_block *sb = path->dentry->d_sb;
 	struct inode *inode = d_inode(path->dentry);
 
-	generic_fillattr(inode, stat);
+	generic_fillattr(mnt_userns, inode, stat);
 
 	stat->blocks = jbfs_count_inode_blocks(inode);
 

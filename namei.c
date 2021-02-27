@@ -33,10 +33,10 @@ static struct dentry *jbfs_lookup(struct inode *dir, struct dentry *dentry,
 	return d_splice_alias(inode, dentry);
 }
 
-static int jbfs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
-		      dev_t dev)
+static int jbfs_mknod(struct user_namespace *mnt_userns, struct inode *dir,
+		      struct dentry *dentry, umode_t mode, dev_t dev)
 {
-	struct inode *inode = jbfs_new_inode(dir, mode);
+	struct inode *inode = jbfs_new_inode(mnt_userns, dir, mode);
 
 	if (IS_ERR(inode))
 		return PTR_ERR(inode);
@@ -46,9 +46,10 @@ static int jbfs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 	return add_nondir(dentry, inode);
 }
 
-static int jbfs_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
+static int jbfs_tmpfile(struct user_namespace *mnt_userns, struct inode *dir,
+			struct dentry *dentry, umode_t mode)
 {
-	struct inode *inode = jbfs_new_inode(dir, mode);
+	struct inode *inode = jbfs_new_inode(mnt_userns, dir, mode);
 
 	if (IS_ERR(inode))
 		return PTR_ERR(inode);
@@ -59,10 +60,10 @@ static int jbfs_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	return 0;
 }
 
-static int jbfs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
-		       bool excl)
+static int jbfs_create(struct user_namespace *mnt_userns, struct inode *dir,
+		       struct dentry *dentry, umode_t mode, bool excl)
 {
-	return jbfs_mknod(dir, dentry, mode, 0);
+	return jbfs_mknod(mnt_userns, dir, dentry, mode, 0);
 }
 
 static int jbfs_link(struct dentry *old_dentry, struct inode *dir,
@@ -76,14 +77,15 @@ static int jbfs_link(struct dentry *old_dentry, struct inode *dir,
 	return add_nondir(dentry, inode);
 }
 
-static int jbfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
+static int jbfs_mkdir(struct user_namespace *mnt_userns, struct inode *dir,
+		      struct dentry *dentry, umode_t mode)
 {
 	struct inode *inode;
 	int err;
 
 	inode_inc_link_count(dir);
 
-	inode = jbfs_new_inode(dir, S_IFDIR | mode);
+	inode = jbfs_new_inode(mnt_userns, dir, S_IFDIR | mode);
 	if (IS_ERR(inode)) {
 		err = PTR_ERR(inode);
 		goto out_dir;
@@ -102,20 +104,20 @@ static int jbfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 		goto out_fail;
 
 	d_instantiate(dentry, inode);
- out:
+out:
 	return err;
 
- out_fail:
+out_fail:
 	inode_dec_link_count(inode);
 	inode_dec_link_count(inode);
 	iput(inode);
- out_dir:
+out_dir:
 	inode_dec_link_count(dir);
 	goto out;
 }
 
-static int jbfs_symlink(struct inode *dir, struct dentry *dentry,
-			const char *name)
+static int jbfs_symlink(struct user_namespace *mnt_userns, struct inode *dir,
+			struct dentry *dentry, const char *name)
 {
 	struct inode *inode;
 	int len = strlen(name) + 1;
@@ -124,7 +126,7 @@ static int jbfs_symlink(struct inode *dir, struct dentry *dentry,
 	if (len > dir->i_sb->s_blocksize)
 		return -ENAMETOOLONG;
 
-	inode = jbfs_new_inode(dir, S_IFLNK | 0777);
+	inode = jbfs_new_inode(mnt_userns, dir, S_IFLNK | 0777);
 	if (IS_ERR(inode))
 		return PTR_ERR(inode);
 
@@ -160,9 +162,9 @@ static int jbfs_unlink(struct inode *dir, struct dentry *dentry)
 
 }
 
-static int jbfs_rename(struct inode *old_dir, struct dentry *old_dentry,
-		       struct inode *new_dir, struct dentry *new_dentry,
-		       unsigned int flags)
+static int jbfs_rename(struct user_namespace *mnt_userns, struct inode *old_dir,
+		       struct dentry *old_dentry, struct inode *new_dir,
+		       struct dentry *new_dentry, unsigned int flags)
 {
 	struct inode *old_inode = d_inode(old_dentry);
 	struct inode *new_inode = d_inode(new_dentry);
@@ -226,15 +228,15 @@ static int jbfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	}
 	return 0;
 
- out_dir:
+out_dir:
 	if (dir_de) {
 		kunmap(dir_page);
 		put_page(dir_page);
 	}
- out_old:
+out_old:
 	kunmap(old_page);
 	put_page(old_page);
- out:
+out:
 	return err;
 }
 

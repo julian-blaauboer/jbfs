@@ -4,12 +4,13 @@
 
 #include "jbfs.h"
 
-static int jbfs_setattr(struct dentry *dentry, struct iattr *attr)
+static int jbfs_setattr(struct user_namespace *mnt_userns,
+			struct dentry *dentry, struct iattr *attr)
 {
 	struct inode *inode = d_inode(dentry);
 	int err;
 
-	err = setattr_prepare(dentry, attr);
+	err = setattr_prepare(mnt_userns, dentry, attr);
 	if (err)
 		return err;
 
@@ -22,7 +23,7 @@ static int jbfs_setattr(struct dentry *dentry, struct iattr *attr)
 		jbfs_truncate(inode);
 	}
 
-	setattr_copy(inode, attr);
+	setattr_copy(mnt_userns, inode, attr);
 	mark_inode_dirty(inode);
 	return 0;
 }

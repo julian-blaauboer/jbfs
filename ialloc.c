@@ -5,7 +5,8 @@
 #include <linux/bitops.h>
 #include "jbfs.h"
 
-struct inode *jbfs_new_inode(struct inode *dir, umode_t mode)
+struct inode *jbfs_new_inode(struct user_namespace *mnt_userns,
+			     struct inode *dir, umode_t mode)
 {
 	struct super_block *sb = dir->i_sb;
 	struct jbfs_sb_info *sbi = JBFS_SB(sb);
@@ -63,7 +64,7 @@ struct inode *jbfs_new_inode(struct inode *dir, umode_t mode)
 	inode = new_inode(sb);
 	ji = JBFS_I(inode);
 
-	inode_init_owner(inode, dir, mode);
+	inode_init_owner(mnt_userns, inode, dir, mode);
 
 	inode->i_ino = (local + 1) | group << sbi->s_local_inode_bits;
 	inode->i_blocks = 0;
